@@ -94,10 +94,10 @@ class Bank(object):
 		self.players = players # from engine
 		self.freeparking = 100
 		db = dbInterface()
+		# setup ownable properties
 		with db.conn as conn:
 			self.rent_table = db.rent_table(conn)
-			self.open_properties = { tile : db.property_info(conn, tile) for tile in self.tiles}
-		super(Bank, self).__init__()
+			self.all_properties = { tile : db.property_info(conn, tile) for tile in self.tiles}
 
 	def update_all_rents(self, players):
 		''' Calls several helper functions, to make sure rent is updated
@@ -144,7 +144,6 @@ class Bank(object):
 	def props_monopoly(self, players):
 		''' Sets all rents to 2x, when a monopoly exists. '''
 		for name, play_obj in players.items():
-			print "Checking %s's monopolys..." % name
 			monopolies = play_obj.check_monopoly()
 			for prop in play_obj.properties.values():
 				if prop.type in monopolies and (self.tiles[prop.name]['houses'] == 0 
@@ -242,18 +241,20 @@ class Player(object):
 			self.position += (die1 + die2)
 		current_location = self.board.layout[self.position]
 		print "You've landed on %s." % current_location
+		return current_location
+
+	def interact(self, current_location, board, bank, cards):
+		''' Given the current position (name of tile), proceed with the appropriate interaction.
+		You can liken this to a 'staging' zone for interactions. '''
 		# interact w/ GAME_CARDS
 		if current_location in GAME_CARDS:
 			if current_location == 'Chance':
 				print "_________ THIS SHOULD BE AN EVENT CARD ____________"
 				Interactor.card_event(self.name, 'Chance')
-
-				#self.interact_card(cards, board, bank, current_location)
 				return
 			elif current_location == 'Community Chest':
 				print "_________ THIS SHOULD BE AN EVENT CARD ____________"
 				Interactor.card_event(self.name, 'Community Chest')
-				#self.interact_card(cards, board, bank, current_location)
 				return
 		# interact w/ tiles that are neither GAME_CARDS nor properties
 		if current_location in NON_PROPS:
@@ -261,9 +262,10 @@ class Player(object):
 			return
 		# interact with current tile, engage in normal game behavior
 		else:
-			self.interact(board, bank, current_location)
+			self.interact_prop(board, bank, current_location)
+		return
 
-	def interact(self, board, bank, current_location):
+	def interact_prop(self, board, bank, current_location):
 		""" checks tile player is currently on, 
 		prompts the player to decide what to do.
 		"""
@@ -273,7 +275,7 @@ class Player(object):
 			print "You already own %s." % current_location
 			owned = True
 		if owned == False:
-			property_ = bank.open_properties[current_location]
+			property_ = bank.all_properties[current_location]
 			# Pay rent if already owned by someone else.
 			if board.tiles[property_.name]['owner']:
 				self.pay_rent(board.tiles[property_.name]['owner'], property_, bank)
@@ -373,6 +375,7 @@ class Player(object):
 		self.money -= property_.cost
 		self.properties[property_.name] = property_
 		board.tiles[property_.name]['owner'] = self.name
+
 		print "%s now owns %s." % (self.name, property_.name)
 		print "%s has $%s left after purchase." % (self.name, self.money)
 		return
@@ -545,7 +548,6 @@ class Interactor(object):
 	board = None
 	bank = None
 	cards = None
-	db = None
 
 	def __init__(self):
 		pass
@@ -662,7 +664,9 @@ class Interactor(object):
 				# Go back 3 spaces
 				elif received_card.tag == "GOBTS":
 					p.position += received_card.effect
-					print "You've moved back to ", cls.board.layout[p.position]
+					print "You've moved back 3 spaces to ", cls.board.layout[p.position]
+					current_location = cls.board.layout[p.position]
+					p.interact(current_location, cls.board, cls.bank, p.position)
 
 				# Advance to nearest Railroad
 				elif received_card.tag == "ADVNR":
@@ -675,24 +679,22 @@ class Interactor(object):
 					elif 30 < p.position < 40: 
 						p.position = 35
 					print "You moved to nearest railroad, %s." % cls.board.layout[p.position] 
+					
 					if cls.board.layout[p.position] in p.properties:
 						print "You already own this property."
 						return
+
 					for other in p.others:
-						# fix this function, so that if it's owned by someone else,
-						# multiple normally entitled rent (fix this so that it scales appropriately)
-						# by two
 						if cls.board.layout[p.position] in other.properties:
 							rent = bank.rent_table[p.position]['rent'] * 2
 							p.money -= rent
 							other.money += rent
 							print "You owe %s $%s in rent." % (other.name, rent)
 							return
-					else:
-						# either add a db.connection here, or make create a ready made set of properties
-						# using the dbInterface ONCE during game setup. it will make things more efficient
-						# since we don't need to keep querying the dB and writing db connection code
-						p.purchase()
+
+					current_location = cls.board.layout[p.position]
+					p.purchase(cls.board, cls.bank.all_properties[current_location], cls.bank)
+					return
 
 				# Advance to nearest Utility
 				elif received_card.tag == "ADVNU":
@@ -712,6 +714,9 @@ class Interactor(object):
 							p.money -= ((die1 + die2) * 10)
 							other.money += ((die1 + die2) * 10)
 							print "You paid %s $%s!" % (other.name, ((die1 + die2) * 10))
+					current_location = cls.board.layout[p.position]		
+					p.purchase(cls.board, cls.bank.all_properties[current_location], cls.bank)
+					return	
 
 				# Normal 'move' card
 				else:
@@ -723,7 +728,9 @@ class Interactor(object):
 						print "You've passed Go! collect $200."
 						p.money += 200
 					p.position = received_card.effect
-					print "YOUR CURRENT POSITION IS NOW: ", cls.board.layout[p.position]						
+					current_location = cls.board.layout[p.position]
+					p.interact(current_location, cls.board, cls.bank, p.position)
+
 			if received_card.category == "item":
 				p.passes.append(card)
 				print "You now have a get out of jail free card! Huzzah!"
@@ -786,6 +793,9 @@ if __name__ == '__main__':
 	y = Player('Ev', b, c)
 	z = Player('Jack', b, c)
 	players = {'Noah': x, 'Ev': y, 'Jack': z}
+
+
+
 
 	db = dbInterface()
 	with db.conn as conn:

@@ -26,6 +26,7 @@ class Engine(object):
 		# set up interactor
 		Interactor.players = self.players
 		Interactor.board = self.board
+		Interactor.bank = self.bank
 		Interactor.cards = self.cards
 		Interactor.db = dbInterface()
 		print 'Interactor Initialized!'
@@ -43,7 +44,8 @@ class Engine(object):
 		for player in self.players.values():
 			print 
 			print "%s, it's your turn now!" % player.name
-			player.roll_dice(self.board, self.bank, self.cards)
+			current_location = player.roll_dice(self.board, self.bank, self.cards)
+			player.interact(current_location, self.board, self.bank, self.cards)
 			player.check_monopoly()
 			self.bank.update_all_rents(self.players)
 			gameLogger.push_public_logs()
