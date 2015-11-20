@@ -100,12 +100,8 @@ class Bank(object):
 		super(Bank, self).__init__()
 
 	def update_all_rents(self, players):
-		# X if houses > 0 - set rent to h (count of houses)
-		# X if hotel > 0 - set rent to hotel (max of 1)
-		# X if mortgaged - set rent to 0
-		# X if len(Player.check_monopoly()) > 0 - set rent to 2x normal
-		# X if db.PropertyInfo(prop).type == 'rr' and count(player.properties) w/ type =='rr' > 2: rent = 25*count
-		# Xif db.PropertyInfo(prop).type == 'utility' and count(player.properties) w/ type =='utility' > 2: rent = dice * 4 
+		''' Calls several helper functions, to make sure rent is updated
+		following any applicable game event. '''
 		self.props_with_assets(players)
 		self.props_mortgaged(players)
 		self.props_monopoly(players)
@@ -277,127 +273,17 @@ class Player(object):
 			print "You already own %s." % current_location
 			owned = True
 		if owned == False:
-			db = dbInterface()
-			with db.conn as conn:
-				if db.property_info(conn, current_location):
-					property_ = db.property_info(conn, current_location)
-					# Pay rent if already owned by someone else.
-					if board.tiles[property_.name]['owner']:
-						self.pay_rent(board.tiles[property_.name]['owner'], property_, bank)
-						return self.post_interact(board, bank)
-					# Prompt Player to purchase property_ if unclaimed.
-					print "%s costs $%s, would you like to purchase it?" % (property_.name, property_.cost)
-					choice = raw_input("y/n >") # make this into a form button on Flask?
-					if choice.lower() == 'y':
-						self.purchase(board, property_, bank)
-						return self.post_interact(board, bank)
+			property_ = bank.open_properties[current_location]
+			# Pay rent if already owned by someone else.
+			if board.tiles[property_.name]['owner']:
+				self.pay_rent(board.tiles[property_.name]['owner'], property_, bank)
+				return self.post_interact(board, bank)
+			# Prompt Player to purchase property_ if unclaimed.
+
+			self.purchase(board, property_, bank)
+			return self.post_interact(board, bank)
 		return self.post_interact(board, bank)
 
-
-	def interact_card(self, cards, board, bank, current_location):
-		db = dbInterface()
-		with db.conn as conn:
-			# select a card from top of the deck
-			card = cards.select(current_location.lower())
-			print "Drew card ", card 
-			if db.card_info(conn, current_location, card):
-				received_card = db.card_info(conn, current_location, card)
-			# for general 'money' type cards
-			if received_card.category == "money":
-				# calls card_repairs - works
-				assets = self.total_assets()
-				if received_card.tag == "GENRP":
-					print "You own %s houses, and %s hotels" % (assets['houses'], assets['hotels'])
-					self.money -= (assets['houses'] * 25)
-					self.money -= (assets['hotels'] * 100)
-				# assessed for street repairs 
-				elif received_card.tag == "STRRP":
-					print "You own %s houses, and %s hotels" % (assets['houses'], assets['hotels'])
-					self.money -= (assets['houses'] * 40)
-					self.money -= (assets['hotels'] * 115)
-				# you have been elected chairman of the board
-				elif received_card.tag == "CHBRD":
-					print "Drew card: ", card
-					print "-- ", received_card.description
-					for other in self.others:
-						bank.balances[self.name] -= received_card.effect
-						bank.balances[other.name] += received_card.effect
-				# grand opera night  
-				elif received_card.tag == "GRDON":
-					print "Drew card: ", card
-					print "-- ", received_card.description
-					for other in self.others:
-						bank.balances[self.name] += received_card.effect
-						bank.balances[other.name] -= received_card.effect					
-					print "Received a total of $%s for other players." % (len(self.others) * received_card.effect)
-				# it is your birthday 
-				elif received_card.tag == "YBDAY":
-					print "Drew card: ", card
-					print "-- ", received_card.description
-					for other in self.others:
-						bank.balances[self.name] += received_card.effect
-						bank.balances[other.name] -= received_card.effect					
-					print "Received a total of %s for other players." % (len(self.others) * received_card.effect)
-				# normal 'Money' card											
-				else:
-					print "Drew card: ", card
-					print "-- ", received_card.description
-					self.money += received_card.effect
-					print "After this card, your balance is at $", self.money
-			if received_card.category == "move":
-				if received_card.tag == "GOTOJ":
-					print "Sorry, you've gone to Jail.."
-					self.position = received_card.effect
-					self.jail = True
-					self.jail_duration = 3
-				# Go back 3 spaces
-				elif received_card.tag == "GOBTS":
-					self.position += received_card.effect
-					print "You've moved back to ", board.layout[self.position]
-				# Advance to nearest Railroad
-				elif received_card.tag == "ADVNR":
-					if 0 <= self.position < 10:
-						self.position = 5
-					elif 10 < self.position < 20:
-						self.position = 15
-					elif 20 < self.position < 30:
-						self.position = 25
-					elif 30 < self.position < 40: 
-						self.position = 35
-					print "You moved to nearest railroad, %s." % board.layout[self.position]
-					self.interact(board, bank, board.layout[self.position]) 
-					if board.layout[self.position] in self.properties:
-						print "You already own this property."
-					for other in self.others:
-						if board.layout[self.position] in other.properties:
-							railroads = 1
-							for prop in other.properties:
-								if 'Railroad' in prop:
-									railroads += 1
-							print "You owe %s $%s in rent." % (other.name, (25*railroads))
-				# Advance to nearest Utility
-				elif received_card.tag == "ADVNU":
-					if 0 <= self.position < 21:
-						self.position = 12
-					elif 22 <= self.position < 40:
-						self.position = 28
-					print "You moved to nearest utility, %s." % board.layout[self.position] 
-					self.interact(board, bank, board.layout[self.position])
-				# Normal 'move' card
-				else:
-					print "Drew card: ", card
-					print "-- ", received_card.description
-					# If you pass go, collect $200
-					print "if this is negative, you should pass go!", received_card.effect - self.position
-					if received_card.effect - self.position < 0:
-						print "You've passed Go! collect $200."
-						self.money += 200
-					self.position = received_card.effect
-					print "YOUR CURRENT POSITION IS NOW: ", board.layout[self.position]						
-			if received_card.category == "item":
-				self.passes.append(card)
-				print "You now have a get out of jail free card! Huzzah!"			
-		return self.post_interact(board, bank)
 
 	def interact_nonprop(self, cards, board, bank, current_location):
 		if current_location == "Go to Jail":
@@ -420,7 +306,7 @@ class Player(object):
 			print "Started from the bottom..."
 		if current_location == "Free Parking":
 			print "Congrats, you've won $%s" % bank.freeparking
-			bank.balances[self.name] += bank.freeparking
+			self.money += bank.freeparking
 			bank.total += bank.freeparking
 			bank.freeparking = 100
 		return self.post_interact(board, bank)
@@ -493,7 +379,11 @@ class Player(object):
 
 	def pay_rent(self, property_owner, property_, bank):
 		print "You owe %s rent." % property_owner
-		bank.balances[property_owner] += bank.rent_table[property_.name]['rent']
+		if bank.players[property_owner] in self.others:
+			recipient = bank.players[property_owner] 
+		else:
+			return
+		recipient.money += bank.rent_table[property_.name]['rent']
 		self.money -= bank.rent_table[property_.name]['rent']
 		gameLogger.add_log(msgtype='rent', p1=self.name, p2=property_owner, 
 			m=property_.rent)

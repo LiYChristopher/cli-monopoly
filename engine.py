@@ -13,7 +13,6 @@ class Engine(object):
 	def setup(self):
 		''' Factory method that sets up Player objects, and essential
 		in-game properties like bank balances. '''
-		print self.bank.open_properties['Vermont Avenue']
 
 		# creates all players
 		for player in range(1, self.num_players+1):
