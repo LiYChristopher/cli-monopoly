@@ -145,15 +145,6 @@ class Bank(object):
 class Player(object):
 	''' the living and breathing entity of a Player in game
 
-	behaviors include:
-		X roll dice COMPLETE - player moves around board, set to board as object
-		X check money COMPLETE - prints quick string representing self.money
-		- check properties and assets
-		- string - info on player, money, assets held, and maybe other stats
-		- purchase property
-		- purchase assets
-		- sell assets
-		- sell properties (mortgage)
 		- forfeit
 	'''
 
@@ -189,6 +180,7 @@ class Player(object):
 		print "You're moving %s spaces" % (die1 + die2)
 		gameLogger.add_log(msgtype='dice', name = self.name, d1= die1, d2 = die2)
 		old_position = self.position
+
 		# If you pass Go, collect $200
 		if self.position + (die1 + die2) >= 40:
 			print "You've passed Go: Collect $200!" 
@@ -198,8 +190,9 @@ class Player(object):
 			self.position += (die1 + die2)
 		current_location = self.board.layout[self.position]
 		print "You've landed on %s." % current_location
-		msg = "'%s' landed on %s." % (self.name, current_location)
-		gameLogger.add_log(msgtype='basic', msg=msg)
+
+		msg = "'%s' landed on '%s'." % (self.name, current_location)
+		gameLogger.add_log(msg=msg)
 		return current_location
 
 	def interact(self, current_location, board, bank, cards):
@@ -208,17 +201,17 @@ class Player(object):
 		# interact w/ GAME_CARDS
 		if current_location in GAME_CARDS:
 			if current_location == 'Chance':
-				print "_________ THIS SHOULD BE AN EVENT CARD ____________"
 				Interactor.card_event(self.name, 'Chance')
 				return
 			elif current_location == 'Community Chest':
-				print "_________ THIS SHOULD BE AN EVENT CARD ____________"
 				Interactor.card_event(self.name, 'Community Chest')
 				return
+
 		# interact w/ tiles that are neither GAME_CARDS nor properties
 		if current_location in NON_PROPS:
 			self.interact_nonprop(cards, board, bank, current_location)
 			return
+
 		# interact with current tile, engage in normal game behavior
 		else:
 			self.interact_prop(board, bank, current_location)
@@ -228,88 +221,115 @@ class Player(object):
 		""" checks tile player is currently on, 
 		prompts the player to decide what to do.
 		"""
-		# if you already own property, skip to end
+		
 		owned = False
 		if current_location in self.properties:
 			print "You already own %s." % current_location
 			owned = True
 		if owned == False:
 			property_ = bank.all_properties[current_location]
+			
 			# Pay rent if already owned by someone else.
 			if board.tiles[property_.name]['owner']:
 				self.pay_rent(board.tiles[property_.name]['owner'], property_, bank)
 				return self.post_interact(board, bank)
+			
 			# Prompt Player to purchase property_ if unclaimed.
-
 			self.purchase(board, property_, bank)
 			return self.post_interact(board, bank)
 		return self.post_interact(board, bank)
 
 
 	def interact_nonprop(self, cards, board, bank, current_location):
+		''' Guides interactions for tiles that are not properties or 
+		card events. '''
+
 		if current_location == "Go to Jail":
 			self.jail = True
 			self.position = 10
 			self.jail_duration = 3
+
 		if current_location == "Income Tax":
 			print "Income Tax - Pay the bank $100."
 			self.money -= 100
 			bank.freeparking += 100
-			bank.total += 100
+			msg = "'%s' paid Income Tax of $100." % self.name
+			gameLogger.add_log(msg=msg) 
+
 		if current_location == "Luxury Tax":
 			print "Luxury Tax - Pay the bank $200."
+
 			self.money -= 200
 			bank.freeparking += 200
-			bank.total += 200
+			msg = "'%s' paid Luxury Tax of $200." % self.name
+			gameLogger.add_log(msg=msg) 
+
 		if current_location == "Visiting/Jail":
-			print "You gaze into the bars.. Happy you're not inside."
+			print "You visit the Jail .. you're not sure why."
+			for other in self.others:
+				if other.jail == True:
+					msg = "'%s' ran into '%s' while visiting the Jail." % (self.name, other.name)
+					break
+	
 		if current_location == "Go":
-			print "Started from the bottom..."
+			msg = "'%s' collects $200 at 'Go'." % self.name 
+			gameLogger.add_log(msg=msg)
+
 		if current_location == "Free Parking":
 			print "Congrats, you've won $%s" % bank.freeparking
 			self.money += bank.freeparking
 			bank.total += bank.freeparking
+			msg = "'%s' has won $%s from Free Parking." % (self.name, bank.freeparking)
+			gameLogger.add_log(msg=msg)
 			bank.freeparking = 100
+			
 		return self.post_interact(board, bank)
 
 	def post_interact(self, board, bank):
 		''' Provides a menu of options for user to choose from at the end of turn.
-		This method is run at the end of interact() or other
-		terminal interaction methods (like when interacting with the 
-		"Visiting/Jail" tile). 
+		This should always be the final step of the interaction cycle. 
 		'''
-		if 'Get out of Jail Free' in self.passes and self.jail == True:
-			get_out = raw_input("You have a 'Get out of Jail Free' card,\
-							would you like to use it? (Y/n)")
-			if get_out.lower() == 'y':
-				self.jail = False
-			print "You're out of jail!"
-		print "Would you like to do anything else?"
-		choice = raw_input("(1: End Turn 2: Request a trade) >")
-		if choice == '1':
-			gameLogger.add_log(msgtype='turn', name=self.name)
-			print "___________________"
-			return
-		if choice == '2':
-			print "Who would you like to trade with?"
-			for i, k in enumerate(bank.balances.keys()):
-				print "%s : %s" % (i, k)
-			return
+
+		unfinished = True
+		while unfinished:
+			if 'Get out of Jail Free' in self.passes and self.jail == True:
+				get_out = raw_input("You have a 'Get out of Jail Free' card,\
+								would you like to use it? (Y/n)")
+				if get_out.lower() == 'y':
+					self.jail = False
+					print "You're out of jail!"
+			print "Would you like to do anything else?"
+			choice = raw_input("(1: End Turn 2: Request a trade 3: Display game logs) >")
+			if choice == '1':
+				gameLogger.add_log(msgtype='turn', name=self.name)
+				print "_" * 20
+				unfinished = False
+			elif choice == '2':
+				print "Who would you like to trade with?"
+				for i, k in enumerate(bank.balances.keys()):
+					print "%s : %s" % (i, k)
+			elif choice == '3':
+				gameLogger.push_public_logs()
+				gameLogger.display()
+			else:
+				continue
 		return 
 
 	def interact_jail(self):
 		plea = raw_input("Try rolling three snake-eyes to get out? Y/n >")
 		if plea.lower() == 'y':
 			snake_eye_trials = 3
+			print "Attempting to roll 3 doubles..."
 			while snake_eye_trials > 0:
 				die1 = choice(range(1, 7))
 				die2 = choice(range(1, 7))
-				print "Your dices...", die1, die2
+				print die1, die2
 				if die1 == die2:
-					print "That's one double.."
 					snake_eye_trials -= 1
 				else:
-					print "Tough luck, bub."
+					msg = "'%s' unsuccessfully tried to get out of jail." % self.name
+					gameLogger.add_log(msg=msg)
+					print "Unsuccessful attempt!"
 					self.jail_duration -= 1
 					if self.jail_duration == 0:
 						print "Hey, you're out of jail next turn!"
@@ -319,7 +339,8 @@ class Player(object):
 		elif plea.lower() == 'n':
 			payoff = raw_input("Pay $50 to get out? Y/n >")
 			if payoff.lower() == 'y':
-				print "paid to get out of jail"
+				msg = "'%s' paid $50 to get out of jail." % self.name
+				gameLogger.add_log(msg=msg)
 				self.money -= 50
 				self.jail = False
 		return
@@ -563,75 +584,83 @@ class Interactor(object):
 			card = cls.cards.select(current_location.lower())
 			if db.card_info(conn, current_location, card):
 				received_card = db.card_info(conn, current_location, card)
+			print "Drew card: ", card
+			print "-- ", received_card.description
+			gameLogger.add_log(msgtype='card event', name=p.name, card=card, 
+				desc=received_card.description)
 			# for general 'money' type cards
 			if received_card.category == "money":
 
 				# calls card_repairs - works
 				assets = p.total_assets()
 				if received_card.tag == "GENRP":
-					print "Drew card: ", card
-					print "-- ", received_card.description
 					print "You own %s houses, and %s hotels" % (assets['houses'], assets['hotels'])
 					p.money -= (assets['houses'] * 25)
-					print "You pay $%s for your houses." % (assets['houses'] * 25)
 					p.money -= (assets['hotels'] * 100)
-					print "You pay $%s for your hotels." % (assets['hotels'] * 100)
+					msg = "'%s' paid $%s and $%s for repairs to houses and hotels, respectively." % (p.name, 
+													 assets['houses'] * 25, assets['hotels'] * 100)
+					gameLogger.add_log(msg=msg)
 
 				# assessed for street repairs 
 				elif received_card.tag == "STRRP":
-					print "Drew card: ", card
-					print "-- ", received_card.description
 					print "You own %s houses, and %s hotels" % (assets['houses'], assets['hotels'])
 					p.money -= (assets['houses'] * 40)
 					p.money -= (assets['hotels'] * 115)
+					msg = "'%s' paid $%s and $%s for repairs to houses and hotels, respectively." % (p.name, 
+													 assets['houses'] * 25, assets['hotels'] * 100)
+					gameLogger.add_log(msg=msg)
 
 				# you have been elected chairman of the board
 				elif received_card.tag == "CHBRD":
-					print "Drew card: ", card
-					print "-- ", received_card.description
 					for other in p.others:
 						p.money -= received_card.effect
 						other.money += received_card.effect
+					msg = "'%s' received $%s from other players." % (p.name, len(p.others) * received_card.effect)
+					gameLogger.add_log(msg=msg)
 
 				# grand opera night  
 				elif received_card.tag == "GRDON":
-					print "Drew card: ", card
-					print "-- ", received_card.description
 					for other in p.others:
 						p.money += received_card.effect
 						other.money -= received_card.effect					
-					print "Received a total of $%s for other players." % (len(p.others) * received_card.effect)
+					msg =  "'%s' received $%s from other players." % (p.name, len(p.others) * received_card.effect)
+					gameLogger.add_log(msg=msg)
 
 				# it is your birthday 
 				elif received_card.tag == "YBDAY":
-					print "Drew card: ", card
-					print "-- ", received_card.description
 					for other in p.others:
 						p.money += received_card.effect
 						other.money -= received_card.effect					
-					print "Received a total of %s for other players." % (len(p.others) * received_card.effect)
+					msg =  "'%s' received $%s from other players." % (p.name, len(p.others) * received_card.effect)
+					gameLogger.add_log(msg=msg)
 
 				# normal 'Money' card											
 				else:
-					print "Drew card: ", card
-					print "-- ", received_card.description
 					p.money += received_card.effect
-					print "After this card, your balance is at $", p.money
+					msg = "'%s' gained $%s." % (p.name, received_card.effect)
+					gameLogger.add_log(msg=msg)
 
+				return p.post_interact(cls.board, cls.bank)
 			if received_card.category == "move":
+
+				# Go to jail
 				if received_card.tag == "GOTOJ":
-					print "Sorry, you've gone to Jail.."
 					p.position = received_card.effect
 					p.jail = True
 					p.jail_duration = 3
+					msg = "'%s' went to '%s'." % (p.name, 'Jail')
+					gameLogger.add_log(msg=msg)
+					p.post_interact(cls.board, cls.bank)
 
 				# Go back 3 spaces
 				elif received_card.tag == "GOBTS":
 					p.position += received_card.effect
-					print "You've moved back 3 spaces to ", cls.board.layout[p.position]
+					print "You've now on ...", cls.board.layout[p.position]
 					current_location = cls.board.layout[p.position]
+					msg = "'%s' moved back 3 spaces to '%s'." % (p.name, current_location)
+					gameLogger.add_log(msg=msg)
 					p.interact(current_location, cls.board, cls.bank, p.position)
-
+					
 				# Advance to nearest Railroad
 				elif received_card.tag == "ADVNR":
 					if 0 <= p.position < 10:
@@ -642,22 +671,27 @@ class Interactor(object):
 						p.position = 25
 					elif 30 < p.position < 40: 
 						p.position = 35
-					print "You moved to nearest railroad, %s." % cls.board.layout[p.position] 
-					
-					if cls.board.layout[p.position] in p.properties:
+					current_location = cls.board.layout[p.position] 
+					print "You moved to nearest railroad, %s." % current_location
+					msg = "'%s' moved to nearest railroad, '%s'." % (p.name, current_location)
+					gameLogger.add_log(msg=msg)
+				
+					if current_location in p.properties:
 						print "You already own this property."
 						return
 
 					for other in p.others:
-						if cls.board.layout[p.position] in other.properties:
+						if current_location in other.properties:
 							rent = bank.rent_table[p.position]['rent'] * 2
 							p.money -= rent
 							other.money += rent
 							print "You owe %s $%s in rent." % (other.name, rent)
+							gameLogger.add_log(msgtype=rent, p1=p.name, 
+												p2=other.name, m=rent)
 							return
 
-					current_location = cls.board.layout[p.position]
 					p.purchase(cls.board, cls.bank.all_properties[current_location], cls.bank)
+					p.post_interact(cls.board, cls.bank)
 					return
 
 				# Advance to nearest Utility
@@ -666,28 +700,31 @@ class Interactor(object):
 						p.position = 12
 					elif 22 <= p.position < 40:
 						p.position = 28
-					print "You moved to nearest utility, %s." % cls.board.layout[p.position]
-					if cls.board.layout[p.position] in p.properties:
+					current_location = cls.board.layout[p.position]	
+					print "You moved to nearest utility, %s." % current_location
+					msg = "'%s' moved to nearest utility, '%s'." % (p.name, current_location)
+					gameLogger.add_log(msg=msg)
+
+					if current_location in p.properties:
 						print "You already own this property."
 						return
+
 					for other in p.others:
-						if cls.board.layout[p.position] in other.properties:
-							print "%s owns this already!" % other.name
+						if current_location in other.properties:
 							die1 = choice(range(1, 7))
 							die2 = choice(range(1, 7))
 							p.money -= ((die1 + die2) * 10)
 							other.money += ((die1 + die2) * 10)
 							print "You paid %s $%s!" % (other.name, ((die1 + die2) * 10))
-					current_location = cls.board.layout[p.position]		
+							gameLogger.add_log(msgtype=rent, p1=p.name, 
+												p2=other.name, m=((die1 + die2) * 10))
+						
 					p.purchase(cls.board, cls.bank.all_properties[current_location], cls.bank)
+					p.post_interact(cls.board, cls.bank)
 					return	
 
 				# Normal 'move' card
 				else:
-					print "Drew card: ", card
-					print "-- ", received_card.description
-					# If you pass go, collect $200
-					print "if this is negative, you should pass go!", received_card.effect - p.position
 					if received_card.effect - p.position < 0:
 						print "You've passed Go! collect $200."
 						p.money += 200
@@ -697,7 +734,9 @@ class Interactor(object):
 
 			if received_card.category == "item":
 				p.passes.append(card)
-				print "You now have a get out of jail free card! Huzzah!"
+				msg = "'%s' received a 'Get Out of Jail Free' card!" % p.name
+				gameLogger.add_log(msg=msg)
+				p.post_interact(cls.board, cls.bank)
 
 if __name__ == '__main__':
 	b = Board(DEFAULT_TILES, None)

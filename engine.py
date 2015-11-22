@@ -50,6 +50,8 @@ class Engine(object):
 			player.check_monopoly()
 			self.bank.update_all_rents(self.players)
 			gameLogger.push_public_logs()
+		msg = "\n -- End of Turn %s. \n" % self.turns
+		gameLogger.add_log(msgtype='basic', msg=msg)	
 		self.turns += 1		
 		return
 
