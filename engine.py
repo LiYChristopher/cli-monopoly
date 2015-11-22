@@ -45,7 +45,8 @@ class Engine(object):
 			print 
 			print "%s, it's your turn now!" % player.name
 			current_location = player.roll_dice(self.board, self.bank, self.cards)
-			player.interact(current_location, self.board, self.bank, self.cards)
+			if current_location != None:
+				player.interact(current_location, self.board, self.bank, self.cards)
 			player.check_monopoly()
 			self.bank.update_all_rents(self.players)
 			gameLogger.push_public_logs()
@@ -59,6 +60,7 @@ class Engine(object):
 			print "Player: ", player.name
 			print "Money: $", player.money
 			property_display = [p.name for p in player.properties.values()]
+			print "Monopolies: ", player.check_monopoly()
 			print "Property: ", property_display
 		print "Total Transactions by Bank (Dollars): $", self.bank.total
 

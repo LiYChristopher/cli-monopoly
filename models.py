@@ -4,6 +4,7 @@ real_path = ['', '/Users/chrisli/.virtualenvs/monopoly/lib/python27.zip', '/User
 sys.path = real_path
 
 from random import choice, shuffle
+from gamelogger import gameLogger
 from config import DEFAULT_TILES, CHANCE, COMMUNITY_CHEST
 from config import NON_PROPS, GAME_CARDS, UPGRADEABLE, NON_UPGRADEABLE
 from db import dbInterface
@@ -34,49 +35,6 @@ class Board(object):
 			if tile["owner"]:
 				print "%s is owned by player" % (tile["owner"])				
 		return
-
-class InvalidLogtype(Exception):
-	pass
-
-class gameLogger(object):
-	''' Logs any: rent-payments, property trades,
-	or significant activities for all players.'''
-
-	players = None
-	player_logs = None
-	valid_types = ['bank', 'turn', 'rent', 'trade', 'dice', 'extra']
-	public_logs = []
-
-	def __init__(self, max_record=500):
-		pass
-
-	@classmethod
-	def add_log(cls, msgtype=None, **kwds):
-		''' Appends a new log based on game activities. Accepts argument
-		'msgtype', which can be: 'turn','rent', 'trade', and 'extra'. '''
-		if msgtype not in cls.valid_types:
-			raise InvalidLogtype("No message logged - This is not a valid message type.")
-		elif msgtype == 'turn':
-			msg = "'%s' has ended their turn." % kwds['name']
-		elif msgtype == 'rent':
-			msg = "'%s' paid '%s' $%s in rent." % (kwds['p1'], kwds['p2'], kwds['m'])
-		elif msgtype == 'trade':
-			msg = "'%s' --> '%s' - traded %s for %s." % (kwds['p1'], kwds['p2'], 
-													kwds['i1'], kwds['i2'])
-		elif msgtype == 'bank':
-			if kwds['m'] < 0:
-				msg = "BANK NOTICE --  '%s' has lost $%s from transactions this turn." % (kwds['p'], kwds['m'])
-			else:
-				msg = "BANK NOTICE -- '%s' has gained $%s from transactions this turn." % (kwds['p'], kwds['m'])
-		cls.public_logs.append(msg)
-		return
-
-	@classmethod
-	def push_public_logs(cls):
-		for log in cls.public_logs:
-			# turn this into Jinja2 compatible objects in the future
-			print "// ...", log
-		cls.public_logs = []
 		
 class Bank(object):
 	''' 
@@ -87,7 +45,6 @@ class Bank(object):
 	def __init__(self, board, players):
 		self.houses = 32
 		self.hotels = 12
-		self.balances = {}
 		self.total = 0 #for stats purposes; total money
 					   # from transactions handled
 		self.tiles = board.prop_tiles()
@@ -219,9 +176,8 @@ class Player(object):
 
 	def roll_dice(self, board, bank, cards):
 		# if in jail, use jail_interaction method
-		p1 = 'Ev'
-		p2 = 'Noah'
-		print 'Personal logs?', gameLogger.player_logs
+		print ' Money: $%s' % self.money
+		print '-' * 15
 
 		#print "Interactor class methods check.", Interactor.trade('Ev', 'Noah', 'Vermont Avenue')
 		if self.jail == True:
@@ -231,6 +187,7 @@ class Player(object):
 		die2 = choice(range(1, 7))
 		print "You rolled: [[%s],[%s]]" % (die1, die2) 
 		print "You're moving %s spaces" % (die1 + die2)
+		gameLogger.add_log(msgtype='dice', name = self.name, d1= die1, d2 = die2)
 		old_position = self.position
 		# If you pass Go, collect $200
 		if self.position + (die1 + die2) >= 40:
@@ -241,6 +198,8 @@ class Player(object):
 			self.position += (die1 + die2)
 		current_location = self.board.layout[self.position]
 		print "You've landed on %s." % current_location
+		msg = "'%s' landed on %s." % (self.name, current_location)
+		gameLogger.add_log(msgtype='basic', msg=msg)
 		return current_location
 
 	def interact(self, current_location, board, bank, cards):
@@ -370,14 +329,15 @@ class Player(object):
 		pending transaction for Bank to process at end of turn.'''
 		print "%s costs $%s, would you like to purchase it?" % (property_.name, property_.cost)
 		choice = raw_input("y/n >") # make this into a form button on Flask?
+		
 		if choice.lower() == 'n':
 			return	
 		self.money -= property_.cost
 		self.properties[property_.name] = property_
 		board.tiles[property_.name]['owner'] = self.name
 
-		print "%s now owns %s." % (self.name, property_.name)
-		print "%s has $%s left after purchase." % (self.name, self.money)
+		gameLogger.add_log(msgtype='purchase', name = self.name, 
+				   property = property_.name, cost = property_.cost)
 		return
 
 	def pay_rent(self, property_owner, property_, bank):
@@ -411,7 +371,7 @@ class Player(object):
 		with db.conn as conn:
 			monopolies = [color for color, count in c.items() 
 						if count == db.prop_set_length(conn, color)[0]]
-		print "You may build assets for these property types: ", monopolies
+		#print "You may build assets for these property types: ", monopolies
 		return monopolies
 
 
@@ -609,6 +569,8 @@ class Interactor(object):
 				# calls card_repairs - works
 				assets = p.total_assets()
 				if received_card.tag == "GENRP":
+					print "Drew card: ", card
+					print "-- ", received_card.description
 					print "You own %s houses, and %s hotels" % (assets['houses'], assets['hotels'])
 					p.money -= (assets['houses'] * 25)
 					print "You pay $%s for your houses." % (assets['houses'] * 25)
@@ -617,6 +579,8 @@ class Interactor(object):
 
 				# assessed for street repairs 
 				elif received_card.tag == "STRRP":
+					print "Drew card: ", card
+					print "-- ", received_card.description
 					print "You own %s houses, and %s hotels" % (assets['houses'], assets['hotels'])
 					p.money -= (assets['houses'] * 40)
 					p.money -= (assets['hotels'] * 115)
@@ -735,56 +699,6 @@ class Interactor(object):
 				p.passes.append(card)
 				print "You now have a get out of jail free card! Huzzah!"
 
-
-		''' deprecated - card_interact '''
-
-		'''
-				# Advance to nearest Railroad
-				elif received_card.tag == "ADVNR":
-					if 0 <= self.position < 10:
-						self.position = 5
-					elif 10 < self.position < 20:
-						self.position = 15
-					elif 20 < self.position < 30:
-						self.position = 25
-					elif 30 < self.position < 40: 
-						self.position = 35
-					print "You moved to nearest railroad, %s." % board.layout[self.position]
-					self.interact(board, bank, board.layout[self.position]) 
-					if board.layout[self.position] in self.properties:
-						print "You already own this property."
-					for other in self.others:
-						if board.layout[self.position] in other.properties:
-							railroads = 1
-							for prop in other.properties:
-								if 'Railroad' in prop:
-									railroads += 1
-							print "You owe %s $%s in rent." % (other.name, (25*railroads))
-				# Advance to nearest Utility
-				elif received_card.tag == "ADVNU":
-					if 0 <= self.position < 21:
-						self.position = 12
-					elif 22 <= self.position < 40:
-						self.position = 28
-					print "You moved to nearest utility, %s." % board.layout[self.position] 
-					self.interact(board, bank, board.layout[self.position])
-				# Normal 'move' card
-				else:
-					print "Drew card: ", card
-					print "-- ", received_card.description
-					# If you pass go, collect $200
-					print "if this is negative, you should pass go!", received_card.effect - self.position
-					if received_card.effect - self.position < 0:
-						print "You've passed Go! collect $200."
-						self.money += 200
-					self.position = received_card.effect
-					print "YOUR CURRENT POSITION IS NOW: ", board.layout[self.position]						
-			if received_card.category == "item":
-				self.passes.append(card)
-				print "You now have a get out of jail free card! Huzzah!"			
-		return self.post_interact(board, bank)
-		'''
-
 if __name__ == '__main__':
 	b = Board(DEFAULT_TILES, None)
 	c = Cards(COMMUNITY_CHEST, CHANCE)
@@ -793,60 +707,12 @@ if __name__ == '__main__':
 	y = Player('Ev', b, c)
 	z = Player('Jack', b, c)
 	players = {'Noah': x, 'Ev': y, 'Jack': z}
-
-
-
-
-	db = dbInterface()
-	with db.conn as conn:
-		prop1a = db.property_info(conn, 'Reading Railroad',)
-		prop1b = db.property_info(conn, 'B&O Railroad', )
-		prop1c = db.property_info(conn, 'Short line', )
-		prop1d = db.property_info(conn, 'Pennsylvania Railroad', )
-
-		prop2a = db.property_info(conn, 'St. Charles Place', )
-		prop2b = db.property_info(conn, 'States Avenue', )
-		prop2c = db.property_info(conn, 'Virginia Avenue', )
-
-		prop3 = db.property_info(conn, 'Electric Company')
-		prop4 = db.property_info(conn, 'Water Works')
-
 	bank = Bank(b, players)
-	# railroads
-	z.properties['Reading Railroad'] = prop1a
-	b.tiles['Reading Railroad']['owner'] = z.name
-
-	z.properties['B&O Railroad'] = prop1b
-	b.tiles['B&O Railroad']['owner'] = z.name
-
-	z.properties['Short Line'] = prop1c
-	b.tiles['Short Line']['owner'] = z.name
-
-	z.properties['Pennsylvania Railroad'] = prop1d
-	b.tiles['Pennsylvania Railroad']['owner'] = z.name	
-
-	# Utilities
-	y.properties['Electric Company'] = prop3
-	b.tiles['Electric Company']['owner'] = y.name
-
-	y.properties['Water Works'] = prop4
-	b.tiles['Water Works']['owner'] = y.name
-
-	# Monopolies
-	x.properties['St. Charles Place'] = prop2a
-	b.tiles['St. Charles Place']['owner'] = x.name	
-
-	x.properties['States Avenue'] = prop2b
-	b.tiles['States Avenue']['owner'] = x.name
-
-	x.properties['Virginia Avenue'] = prop2c
-	b.tiles['Virginia Avenue']['owner'] = x.name
-
-	bank.update_all_rents(players)
-
-	for i, j in bank.rent_table.items():
-		print i, j['rent']
-	
+	Interactor.players = players
+	Interactor.board = b
+	Interactor.bank = bank
+	Interactor.cards = c
+	Interactor.db = dbInterface()
 
 
 
