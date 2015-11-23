@@ -5,6 +5,7 @@ sys.path = real_path
 
 from random import choice, shuffle
 from gamelogger import gameLogger
+from interactor import Interactor
 from config import DEFAULT_TILES, CHANCE, COMMUNITY_CHEST
 from config import NON_PROPS, GAME_CARDS, UPGRADEABLE, NON_UPGRADEABLE
 from db import dbInterface
@@ -285,36 +286,6 @@ class Player(object):
 			
 		return self.post_interact(board, bank)
 
-	def post_interact(self, board, bank):
-		''' Provides a menu of options for user to choose from at the end of turn.
-		This should always be the final step of the interaction cycle. 
-		'''
-
-		unfinished = True
-		while unfinished:
-			if 'Get out of Jail Free' in self.passes and self.jail == True:
-				get_out = raw_input("You have a 'Get out of Jail Free' card,\
-								would you like to use it? (Y/n)")
-				if get_out.lower() == 'y':
-					self.jail = False
-					print "You're out of jail!"
-			print "Would you like to do anything else?"
-			choice = raw_input("(1: End Turn 2: Request a trade 3: Display game logs) >")
-			if choice == '1':
-				gameLogger.add_log(msgtype='turn', name=self.name)
-				print "_" * 20
-				unfinished = False
-			elif choice == '2':
-				print "Who would you like to trade with?"
-				for i, k in enumerate(bank.balances.keys()):
-					print "%s : %s" % (i, k)
-			elif choice == '3':
-				gameLogger.push_public_logs()
-				gameLogger.display()
-			else:
-				continue
-		return 
-
 	def interact_jail(self):
 		plea = raw_input("Try rolling three snake-eyes to get out? Y/n >")
 		if plea.lower() == 'y':
@@ -345,6 +316,70 @@ class Player(object):
 				self.jail = False
 		return
  
+	def post_interact(self, board, bank):
+		''' Provides a menu of options for user to choose from at the end of turn.
+		This should always be the final step of the interaction cycle. 
+		'''
+
+		unfinished = True
+		options = ['End Turn', 'Request a Trade', 'Mortgage Property',
+				   'Purchase Asset', 'Sell Asset', 'Inspect Self', 'Display Game Logs']
+
+		# add additional options based on state
+		if not self.check_monopoly():
+			options.remove('Purchase Asset')
+
+		
+		for tile_name in self.properties:
+			if (board.tiles[tile_name]['hotels'] == 0 and board.tiles[tile_name]['houses'] == 0):
+				options.remove('Sell Asset')
+				break
+
+		if not self.properties:
+			options.remove('Mortgage Property')		
+
+		while unfinished:
+			# use Get out of Jail Free if it's available
+			if 'Get out of Jail Free' in self.passes and self.jail == True:
+				get_out = raw_input("You have a 'Get out of Jail Free' card,\
+								would you like to use it? (Y/n)")
+				if get_out.lower() == 'y':
+					self.jail = False
+					print "You're out of jail!"
+
+			# options menu		
+			print "Would you like to do anything else?"
+			menu = {}
+			for menu_item in options:
+				print "'%s' : %s." % (menu_item[0].lower(), menu_item)
+
+			choice = raw_input("Enter your choice here >> ").lower()
+			if choice == 'e':
+				gameLogger.add_log(msgtype='turn', name=self.name)
+				print "_" * 20
+				unfinished = False
+
+			elif choice == 'r':
+				self.trade_prompt(bank)			# Trade
+
+			elif choice == 'm':
+				pass							# Mortgage Property
+
+			elif choice == 'p':
+				self.build_asset_prompt(bank)	# Purchase Asset
+
+			elif choice == 'i':
+				self.inspect_self()				# Inspect Self
+
+			elif choice == 'd':
+				gameLogger.push_public_logs()	# Display Game Logs
+				gameLogger.display()
+
+
+			else:
+				continue
+		return 
+
 	def purchase(self, board, property_, bank):
 		''' Purchase property in argument, sets up
 		pending transaction for Bank to process at end of turn.'''
@@ -373,6 +408,16 @@ class Player(object):
 			m=property_.rent)
 		return 
 
+	def check_monopoly(self):
+		db = dbInterface()
+		colors = [p.type for p in self.properties.values()]
+		c = Counter(colors)
+		with db.conn as conn:
+			monopolies = [color for color, count in c.items() 
+						if count == db.prop_set_length(conn, color)[0]]
+		#print "You may build assets for these property types: ", monopolies
+		return monopolies
+
 	def total_assets(self):
 		''' Returns total financial assets of a player, represented
 		as a dictionary containing the total money, houses and hotels 
@@ -385,21 +430,54 @@ class Player(object):
 		return {'money': self.money ,'houses': total_houses, 
 				'hotels': total_hotels}
 
-	def check_monopoly(self):
-		db = dbInterface()
-		colors = [p.type for p in self.properties.values()]
-		c = Counter(colors)
-		with db.conn as conn:
-			monopolies = [color for color, count in c.items() 
-						if count == db.prop_set_length(conn, color)[0]]
-		#print "You may build assets for these property types: ", monopolies
-		return monopolies
+	def build_asset_prompt(self, bank):
+		''' User interface that prompts user to select property they 
+		want to build on. '''
+		ongoing = True
+		while ongoing: 
+			menu = {}
+			for num, prop in enumerate(self.properties):
+				print "%s : %s" % (num, prop)
+				menu[num] = self.properties[prop]
 
+			print "%s : %s" % (len(self.properties) ,'Cancel')
+			menu[len(self.properties)] = 'Cancel'
+			print "What property would you like to build on?"
+
+			choice = int(raw_input(" >> "))
+			if menu[choice] == 'Cancel' or choice > len(self.properties):
+				break
+			number_to_build = int(raw_input("How much do you want to build? (Max is 5 - a hotel.) "))
+			print "So you want to build %s structures on %s?" % (number_to_build, menu[choice].name)
+
+			confirm = raw_input("(y/n) >> ")
+			if confirm.lower() == 'y':
+				self.build_asset(number_to_build, menu[choice], bank)
+				ongoing = False
+			else:
+				continue
+		return
+
+	def trade_prompt(self, bank):
+		print "Who would you like to trade with?"
+		menu = {}
+		for num, other in enumerate(self.others):
+			print "%s : %s" % (num, other.name)
+			menu[str(num)] = other
+		choice = raw_input(" >> ")
+		
+		s = bank.players[self.name]	# sender
+		r = menu[choice] 			# recipient
+		print s, r
+
+		Interactor.trade(s, r)
+		return 
 
 	def build_asset(self, number, property_, bank):
 		''' You start by building a house, and then automatically
 		transition to hotel. There's a limit of 1 hotel in this
 		game. To be activated in post-interaction'''
+
 		# if hotel already here, don't build.
 		if self.board.tiles[property_.name]['hotels'] == 1:
 			return " -- You can't build anymore properties here!"
@@ -430,13 +508,17 @@ class Player(object):
 				bank.hotels -= 1
 				self.money += ((number + current_developments) - 5) * u_cost
 				print "Built 1 hotel at %s, it cost $%s." % (property_.name, (old_money - self.money))
+				msg = "'%s' built 1 hotel at %s." % (self.name, property_.name)
 			else:
 				self.board.tiles[property_.name]['houses'] += number	
 				bank.houses -= number
 				print "Built %s house at %s, it cost $%s." % (number, property_.name, (old_money - self.money))	
+				msg = "'%s' built %s houses at %s." % (self.name, number, property_.name)
 		else:
 			print "Sorry, you don't seem to have a monopoly for this set of properties."
 			return
+		gameLogger.add_log(msg=msg)
+		return
 
 	def sell_asset(self, number, property_, bank):
 		''' Sell a specified number of some type of asset for half 
@@ -487,9 +569,23 @@ class Player(object):
 			self.money += property_.mortgage
 			print "Gained $%s from mortgaged property, '%s'" % (property_.mortgage, property_.name)
 		return
+
+	def inspect_self(self):
+		print "_" * 40
+		print " " * 20 + self.name + " " * 20 + "\n"
+		print "Money \t ... $%s" % self.money
+		print "Properties:"
+		for i, p in enumerate(self.properties.values()):
+			print "\t ...", p.name
+		print "Monopolies:"
+		for i, p in enumerate(self.check_monopoly()):
+			print "\t ...", p.title()
+		print "_" * 40
+		return
 		
-	def __str__(self):
-		return "Your name is %s." % self.name
+	def __repr__(self):
+		return "<class Player '%s'>" % self.name	
+
 
 
 class Cards(object):
@@ -520,238 +616,31 @@ class Cards(object):
 			return draw			
 		return 
 
-class TradeError(Exception):
-	pass
-
-class Interactor(object):
-
-	players = None
-	board = None
-	bank = None
-	cards = None
-
-	def __init__(self):
-		pass
-
-	@classmethod
-	def trade(cls, s, r, item):
-		''' Edit to test trade box mechanics.
-		Make sure to include code that transitions
-		ownership of the property between players
-		'''
-
-		p = cls.players
-		transaction_type = ['p', None]
-		if (s or r) not in p.keys():
-			raise TradeError('Either the sender or recipient is not in this game.')
-		offer = "%s would like to trade '%s'. What would you like to offer? >" % (s, item)
-		gameLogger[r].add_log(offer)
-		response = p[r].new_log(type_='trade')
-		if response[1] == 'money':
-			summary = "%s is willing to trade '$%s' for your '%s'. Is this okay? >" % (r, response[0], item)
-			transaction_type[1] = 'm'
-		else:
-			summary = "%s is willing to trade '%s' for your '%s'. Is this okay? >" % (r, response[0], item)
-			transaction_type[1] = 'p'
-		deal = raw_input(summary)
-		if deal.lower() == 'y':
-			if transaction_type[1] == 'm':
-				p[s].money += response[0]
-				p[r].money -= response[0]
-				p[s].properties.remove(item) 
-				p[r].properties.append(item)
-			else:
-				p[s].properties.append(response[0])
-				p[r].properties.remove(response[0])
-				p[s].properties.remove(item)
-				p[r].properties.append(item)
-				pass
-
-		print '%s has $%s money left.' % (cls.players[r].name, cls.players[r].money)
-		print cls.players[s].properties
-		print cls.players[r].properties
-
-		gameLogger.add_log(msgtype='trade', p1=s, p2=r, i1=item, i2=response[0])
-		return
-
-	@classmethod
-	def card_event(cls, player, current_location):
-		''' '''
-		db = dbInterface()
-		p = cls.players[player]
-		with db.conn as conn:
-			# select a card from top of the deck
-			card = cls.cards.select(current_location.lower())
-			if db.card_info(conn, current_location, card):
-				received_card = db.card_info(conn, current_location, card)
-			print "Drew card: ", card
-			print "-- ", received_card.description
-			gameLogger.add_log(msgtype='card event', name=p.name, card=card, 
-				desc=received_card.description)
-			# for general 'money' type cards
-			if received_card.category == "money":
-
-				# calls card_repairs - works
-				assets = p.total_assets()
-				if received_card.tag == "GENRP":
-					print "You own %s houses, and %s hotels" % (assets['houses'], assets['hotels'])
-					p.money -= (assets['houses'] * 25)
-					p.money -= (assets['hotels'] * 100)
-					msg = "'%s' paid $%s and $%s for repairs to houses and hotels, respectively." % (p.name, 
-													 assets['houses'] * 25, assets['hotels'] * 100)
-					gameLogger.add_log(msg=msg)
-
-				# assessed for street repairs 
-				elif received_card.tag == "STRRP":
-					print "You own %s houses, and %s hotels" % (assets['houses'], assets['hotels'])
-					p.money -= (assets['houses'] * 40)
-					p.money -= (assets['hotels'] * 115)
-					msg = "'%s' paid $%s and $%s for repairs to houses and hotels, respectively." % (p.name, 
-													 assets['houses'] * 25, assets['hotels'] * 100)
-					gameLogger.add_log(msg=msg)
-
-				# you have been elected chairman of the board
-				elif received_card.tag == "CHBRD":
-					for other in p.others:
-						p.money -= received_card.effect
-						other.money += received_card.effect
-					msg = "'%s' received $%s from other players." % (p.name, len(p.others) * received_card.effect)
-					gameLogger.add_log(msg=msg)
-
-				# grand opera night  
-				elif received_card.tag == "GRDON":
-					for other in p.others:
-						p.money += received_card.effect
-						other.money -= received_card.effect					
-					msg =  "'%s' received $%s from other players." % (p.name, len(p.others) * received_card.effect)
-					gameLogger.add_log(msg=msg)
-
-				# it is your birthday 
-				elif received_card.tag == "YBDAY":
-					for other in p.others:
-						p.money += received_card.effect
-						other.money -= received_card.effect					
-					msg =  "'%s' received $%s from other players." % (p.name, len(p.others) * received_card.effect)
-					gameLogger.add_log(msg=msg)
-
-				# normal 'Money' card											
-				else:
-					p.money += received_card.effect
-					msg = "'%s' gained $%s." % (p.name, received_card.effect)
-					gameLogger.add_log(msg=msg)
-
-				return p.post_interact(cls.board, cls.bank)
-			if received_card.category == "move":
-
-				# Go to jail
-				if received_card.tag == "GOTOJ":
-					p.position = received_card.effect
-					p.jail = True
-					p.jail_duration = 3
-					msg = "'%s' went to '%s'." % (p.name, 'Jail')
-					gameLogger.add_log(msg=msg)
-					p.post_interact(cls.board, cls.bank)
-
-				# Go back 3 spaces
-				elif received_card.tag == "GOBTS":
-					p.position += received_card.effect
-					print "You've now on ...", cls.board.layout[p.position]
-					current_location = cls.board.layout[p.position]
-					msg = "'%s' moved back 3 spaces to '%s'." % (p.name, current_location)
-					gameLogger.add_log(msg=msg)
-					p.interact(current_location, cls.board, cls.bank, p.position)
-					
-				# Advance to nearest Railroad
-				elif received_card.tag == "ADVNR":
-					if 0 <= p.position < 10:
-						p.position = 5
-					elif 10 < p.position < 20:
-						p.position = 15
-					elif 20 < p.position < 30:
-						p.position = 25
-					elif 30 < p.position < 40: 
-						p.position = 35
-					current_location = cls.board.layout[p.position] 
-					print "You moved to nearest railroad, %s." % current_location
-					msg = "'%s' moved to nearest railroad, '%s'." % (p.name, current_location)
-					gameLogger.add_log(msg=msg)
-				
-					if current_location in p.properties:
-						print "You already own this property."
-						return
-
-					for other in p.others:
-						if current_location in other.properties:
-							rent = bank.rent_table[p.position]['rent'] * 2
-							p.money -= rent
-							other.money += rent
-							print "You owe %s $%s in rent." % (other.name, rent)
-							gameLogger.add_log(msgtype=rent, p1=p.name, 
-												p2=other.name, m=rent)
-							return
-
-					p.purchase(cls.board, cls.bank.all_properties[current_location], cls.bank)
-					p.post_interact(cls.board, cls.bank)
-					return
-
-				# Advance to nearest Utility
-				elif received_card.tag == "ADVNU":
-					if 0 <= p.position < 21:
-						p.position = 12
-					elif 22 <= p.position < 40:
-						p.position = 28
-					current_location = cls.board.layout[p.position]	
-					print "You moved to nearest utility, %s." % current_location
-					msg = "'%s' moved to nearest utility, '%s'." % (p.name, current_location)
-					gameLogger.add_log(msg=msg)
-
-					if current_location in p.properties:
-						print "You already own this property."
-						return
-
-					for other in p.others:
-						if current_location in other.properties:
-							die1 = choice(range(1, 7))
-							die2 = choice(range(1, 7))
-							p.money -= ((die1 + die2) * 10)
-							other.money += ((die1 + die2) * 10)
-							print "You paid %s $%s!" % (other.name, ((die1 + die2) * 10))
-							gameLogger.add_log(msgtype=rent, p1=p.name, 
-												p2=other.name, m=((die1 + die2) * 10))
-						
-					p.purchase(cls.board, cls.bank.all_properties[current_location], cls.bank)
-					p.post_interact(cls.board, cls.bank)
-					return	
-
-				# Normal 'move' card
-				else:
-					if received_card.effect - p.position < 0:
-						print "You've passed Go! collect $200."
-						p.money += 200
-					p.position = received_card.effect
-					current_location = cls.board.layout[p.position]
-					p.interact(current_location, cls.board, cls.bank, p.position)
-
-			if received_card.category == "item":
-				p.passes.append(card)
-				msg = "'%s' received a 'Get Out of Jail Free' card!" % p.name
-				gameLogger.add_log(msg=msg)
-				p.post_interact(cls.board, cls.bank)
 
 if __name__ == '__main__':
 	b = Board(DEFAULT_TILES, None)
 	c = Cards(COMMUNITY_CHEST, CHANCE)
+	db = dbInterface()
 
 	x = Player('Noah', b, c)
 	y = Player('Ev', b, c)
 	z = Player('Jack', b, c)
-	players = {'Noah': x, 'Ev': y, 'Jack': z}
+	players = {x.name: x, y.name : y, z.name : z}
 	bank = Bank(b, players)
 	Interactor.players = players
 	Interactor.board = b
 	Interactor.bank = bank
 	Interactor.cards = c
 	Interactor.db = dbInterface()
+	with db.conn as conn:
+		x.purchase(b, db.property_info(conn, 'Mediterranean Avenue'), bank)	
+		x.purchase(b, db.property_info(conn, 'Baltic Avenue'), bank)	
+		y.purchase(b, db.property_info(conn, 'Ventnor Avenue'), bank)
+		y.purchase(b, db.property_info(conn, 'Atlantic Avenue'), bank)
 
+	#Interactor.trade(x.name, y.name, 'Mediterranean Avenue')
+	#x.post_interact(b, bank)
 
+	x.others = [other for other in bank.players.values() if other != x]
+	x.trade_prompt(bank)
 
