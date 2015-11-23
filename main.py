@@ -1,14 +1,20 @@
-from models import *
-from db import *
-from engine import *
 
+''' Monopoly-Command Line - V.01
+
+- Bugfixes will be ongoing at this point, especially in
+interactor.py
+- 'Monopoly takes 1 argument - the number of players.'
+
+'''
+
+from monopoly import Monopoly
 
 if __name__ == '__main__':
-	game = Engine(3)
 
-	game.setup()
+    monopoly = Monopoly(3)
+    monopoly.setup()
 
-	for turn in range(0, 10):
-		game.turn()
+    for turn in range(0, 10):
+	    monopoly.turn()
 
-	game.summary()
+    monopoly.summary()

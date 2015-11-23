@@ -1,3 +1,5 @@
+from db import dbInterface
+from gamelogger import *
 
 class TradeError(Exception):
 	pass
@@ -14,9 +16,10 @@ class Interactor(object):
 
 	@classmethod
 	def trade(cls, s, r):
-		''' Edit to test trade box mechanics.
-		Make sure to include code that transitions
-		ownership of the property between players
+
+		''' Displays a series of menus to coordinate
+		a trade between two players. Since this is the command-line
+		version, it's not optimal - but it works!
 		'''
 
 		p = cls.players
@@ -30,7 +33,7 @@ class Interactor(object):
 		while ongoing_s:
 
 			print "What would you like to trade? >"
-			choice = raw_input(" (0: Properties 1: Money 2: Passes 3: Confirm 4: Cancel) > ")
+			choice = raw_input(" (0: Properties 1: Money 2: Passes 3: Confirm 4: Start Over 5: Cancel) > ")
 			
 			if choice == '0':
 				s_menu = {}
@@ -75,38 +78,49 @@ class Interactor(object):
 			# offer confirmation
 			elif choice == '3':
 				print "You're about to trade: "
-				print "\t Money: $%s" % sender_trade_box['money']
+				print "\t Money: "
+				print "\t - $%s" % sender_trade_box['money']
 				print "\t Properties: " 
 				for prop in sender_trade_box['properties']:
 					print "\t -", prop.name
 
 				offer = raw_input("Can you confirm this offer? (y/n) > ").lower()
 				if offer == 'y':
-					print "Coo."
 					ongoing_s = False
 				elif offer == 'n':
 					continue
 				else:
 					ongoing_s = False
 
-			# Cancel Trade
+			# Start over
 			elif choice == '4':
+				print "Clearing trade box ..."
+				sender_trade_box['properties'] = []
+				sender_trade_box['money'] = 0
+				continue 
+
+			# Cancel Trade
+			elif choice == '5':
 				print "Cancelling Trade ..."
 				ongoing_s = False
 				return
 
+		print "Sending offer to %s ..." % r.name
+		print "'%s', '%s' has offered their properties:" % (r.name, s.name)
+		for prop in sender_trade_box['properties']:
+			print "- ", prop.name
+		print "and $%s dollars.\n" % sender_trade_box['money']
 
-		print "Sending offer to %s ..." % (r.name)
-		print "%s, has offered their %s properties and $%s dollars." % (r.name, sender_trade_box['properties'], sender_trade_box['money'])
 		offer_reaction = raw_input("Do you accept/decline their offer? (a/d) > ").lower()
 		if offer_reaction == 'd':
 			print "Trade has been declined by %s." % r.name
+			return
 
 		# Receiver	
 		ongoing_r = True
 		while ongoing_r:
 			print "What would you like to trade? >"
-			choice = raw_input(" (0: Properties 1: Money 2: Passes 3: Confirm 4: Cancel) > ")
+			choice = raw_input(" (0:Properties, 1: Money, 2: Passes, 3: Confirm, 4: Cancel) > ")
 			
 			if choice == '0':
 				r_menu = {}
@@ -122,6 +136,10 @@ class Interactor(object):
 				if menu_choice == str(len(r.properties)):
 					print "\t Back to trade menu ..."
 					continue
+
+				elif menu_choice not in menu.keys():
+					continue 
+
 				item = r_menu[menu_choice]
 				if item in receiver_trade_box['properties']:
 					print "Removing %s from trade box." % item.name
@@ -138,11 +156,12 @@ class Interactor(object):
 				while not money_offer:
 					money = raw_input("How much money would you like to trade? > ")
 					if not money.isdigit():
-						print '\t Not valid amount.'
+						print '\t - Not valid amount.'
 						continue
 					money = int(money)
 					if (s.money - money) < 0:
-						print "\t Not enough money." 
+						print "\t - Not enough money." 
+						money_offer = True
 					else:
 						receiver_trade_box['money'] += int(money)
 						print "Loaded $%s to trade box ..." % money
@@ -151,14 +170,14 @@ class Interactor(object):
 			# offer confirmation
 			elif choice == '3':
 				print "You're about to trade: "
-				print "\t Money: $%s" % receiver_trade_box['money']
+				print "\t Money: "
+				print "\t - $%s" % receiver_trade_box['money']
 				print "\t Properties: " 
 				for prop in receiver_trade_box['properties']:
 					print "\t -", prop.name
 
 				offer = raw_input("Can you confirm this offer? (y/n) > ").lower()
 				if offer == 'y':
-					print "Coo."
 					ongoing_r = False
 				elif offer == 'n':
 					continue
@@ -170,12 +189,52 @@ class Interactor(object):
 				print "Cancelling Trade ..."
 				ongoing_r = False			
 
-		print "Receiver ops.."
-
-
 		# Final confirmation, exchange of trade boxes.
+		
+		# Sender
+		print ("_" * 20) + " SUMMARY " + (20 * "_")
+		print "'%s' is trading properties:" % (s.name)
+		for prop in sender_trade_box['properties']:
+			print "- ", prop.name
+		print "and $%s dollars. \n" % sender_trade_box['money']
+		
+		# Receiver
+		print "... For '%s's' properties:" % (r.name)
+		for prop in receiver_trade_box['properties']:
+			print "- ", prop.name
+		print "and $%s dollars.\n" % receiver_trade_box['money']
+
+		s_confirm = raw_input("%s, is this okay? (y/n)" % s.name).lower()
+		r_confirm = raw_input("%s, is this okay? (y/n)" % r.name).lower()
+
+		if s_confirm == 'y' and r_confirm == 'y':
+			print "Processing ... one moment."
+			for prop in sender_trade_box['properties']:
+				r.properties[prop.name] = s.properties[prop.name]
+				cls.board.tiles[prop.name]['owner'] = r.name
+				del s.properties[prop.name]				
+
+			s.money -= sender_trade_box['money']
+			r.money += sender_trade_box['money']
+
+			for prop in receiver_trade_box['properties']:
+				s.properties[prop.name] = r.properties[prop.name]
+				cls.board.tiles[prop.name]['owner'] = s.name
+				del r.properties[prop.name]				
+
+			s.money += receiver_trade_box['money']
+			r.money -= receiver_trade_box['money']
 
 		# Log transaction
+		print 'Transaction Complete - see log'
+
+		m1 = sender_trade_box['money']
+		m2 = receiver_trade_box['money']
+		i1 = [prop.name for prop in sender_trade_box['properties']]
+		i2 = [prop.name for prop in receiver_trade_box['properties']]
+
+		gameLogger.add_log(msgtype='trade', p1=s.name, p2=r.name, 
+									i1=i1, m1=m1, i2=i2, m2=m2)
 		return
 
 	@classmethod
@@ -286,7 +345,7 @@ class Interactor(object):
 
 					for other in p.others:
 						if current_location in other.properties:
-							rent = bank.rent_table[p.position]['rent'] * 2
+							rent = cls.bank.rent_table[p.position]['rent'] * 2
 							p.money -= rent
 							other.money += rent
 							print "You owe %s $%s in rent." % (other.name, rent)

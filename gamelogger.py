@@ -90,8 +90,8 @@ class gameLogger(object):
 			msg = "'%s' paid '%s' $%s in rent." % (kwds['p1'], kwds['p2'], kwds['m'])
 		
 		elif msgtype == 'trade':
-			msg = "'%s' --> '%s' - traded '%s' for '%s'." % (kwds['p1'], kwds['p2'], 
-													kwds['i1'], kwds['i2'])
+			msg = "<-> '%s' traded '%s' - '%s' and $%s for '%s' and $%s." % (kwds['p1'], kwds['p2'], 
+													kwds['i1'], kwds['m1'], kwds['i2'], kwds['m2'])
 		elif msgtype == 'card event':
 			msg = "// '%s' drew card '%s' -- %s " % (kwds['name'], kwds['card'].title(), kwds['desc'])
 		

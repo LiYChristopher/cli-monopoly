@@ -1,8 +1,15 @@
+
+''' This is the game engine,
+which intializes essential game elements, and
+coordinates them. These elements include mechanics like turns, 
+as well as game state updates (like for rent or logs).
+'''
+
 from models import *
 
-class Engine(object):
+class Monopoly(object):
 	def __init__(self, num_players, board=Board(DEFAULT_TILES, None), 
-				 cards=Cards(CHANCE, COMMUNITY_CHEST)):
+				cards=Cards(CHANCE, COMMUNITY_CHEST)):
 		self.num_players = num_players
 		self.players = {}
 		self.board = board
@@ -34,8 +41,7 @@ class Engine(object):
 		gameLogger.players = self.players
 		gameLogger.player_logs = { p : [] for p in self.players }
 		print 'Game logger initialized!'
-
-		return 
+		return "Setup complete"
 
 	def turn(self):
 		''' Advances game state - orchestrates a turn for each player using 
@@ -51,8 +57,8 @@ class Engine(object):
 			self.bank.update_all_rents(self.players)
 			gameLogger.push_public_logs()
 		msg = "\n -- End of Turn %s. \n" % self.turns
-		gameLogger.add_log(msgtype='basic', msg=msg)	
-		self.turns += 1		
+		gameLogger.add_log(msgtype='basic', msg=msg)
+		self.turns += 1
 		return
 
 	def summary(self):
@@ -70,7 +76,7 @@ class Engine(object):
 if __name__ == '__main__':
 	import random
 
-	game = Engine(3)
+	game = Monopoly(3)
 	game.setup()
 	random_player = random.choice(game.players.values())
 	for i in range(17):

@@ -75,6 +75,7 @@ class Bank(object):
 
 			if tile_obj['owner'] != None:
 				prop = players[tile_obj['owner']].properties[tile_name] # prop object
+
 			if self.tiles[tile_name]['houses'] == 1:
 				self.rent_table[tile_name]['rent'] = prop.h1
 
@@ -163,8 +164,7 @@ class Player(object):
 		self.others = []
 
 	def current_position(self):
-		return "Currently at %s" % self.board,layout[self.position]
-		pass
+		return self.board.layout[self.position]
 
 	def roll_dice(self, board, bank, cards):
 		# if in jail, use jail_interaction method
@@ -322,8 +322,9 @@ class Player(object):
 		'''
 
 		unfinished = True
-		options = ['End Turn', 'Request a Trade', 'Mortgage Property',
-				   'Purchase Asset', 'Sell Asset', 'Inspect Self', 'Display Game Logs']
+		options = ['End Turn', 'Trade', 'Mortgage Property',
+				   'Purchase Asset', 'Sell Asset', 'Inspect Self', 
+				   'Others Inspect', 'Display Game Logs']
 
 		# add additional options based on state
 		if not self.check_monopoly():
@@ -359,7 +360,7 @@ class Player(object):
 				print "_" * 20
 				unfinished = False
 
-			elif choice == 'r':
+			elif choice == 't':
 				self.trade_prompt(bank)			# Trade
 
 			elif choice == 'm':
@@ -371,11 +372,15 @@ class Player(object):
 			elif choice == 'i':
 				self.inspect_self()				# Inspect Self
 
+			elif choice == 'o':
+				self.inspect_others()			# Inspect Others
+
 			elif choice == 'd':
 				gameLogger.push_public_logs()	# Display Game Logs
 				gameLogger.display()
-
-
+			elif choice == 'rt':
+				for i in bank.rent_table.items():
+					print i
 			else:
 				continue
 		return 
@@ -383,14 +388,21 @@ class Player(object):
 	def purchase(self, board, property_, bank):
 		''' Purchase property in argument, sets up
 		pending transaction for Bank to process at end of turn.'''
-		print "%s costs $%s, would you like to purchase it?" % (property_.name, property_.cost)
-		choice = raw_input("y/n >") # make this into a form button on Flask?
 		
-		if choice.lower() == 'n':
-			return	
-		self.money -= property_.cost
-		self.properties[property_.name] = property_
-		board.tiles[property_.name]['owner'] = self.name
+		ongoing = True
+		while ongoing:
+			print "%s costs $%s, would you like to purchase it?" % (property_.name, property_.cost)
+			choice = raw_input("(y/n) >").lower() # make this into a form button on Flask?
+			
+			if choice != 'y' and choice != 'n':
+				continue
+
+			if choice.lower() == 'n':
+				return	
+			self.money -= property_.cost
+			self.properties[property_.name] = property_
+			board.tiles[property_.name]['owner'] = self.name
+			ongoing = False
 
 		gameLogger.add_log(msgtype='purchase', name = self.name, 
 				   property = property_.name, cost = property_.cost)
@@ -402,11 +414,13 @@ class Player(object):
 			recipient = bank.players[property_owner] 
 		else:
 			return
-		recipient.money += bank.rent_table[property_.name]['rent']
+		rent = bank.rent_table[property_.name]['rent']
+		recipient.money += rent
 		self.money -= bank.rent_table[property_.name]['rent']
 		gameLogger.add_log(msgtype='rent', p1=self.name, p2=property_owner, 
-			m=property_.rent)
+			m=rent)
 		return 
+
 
 	def check_monopoly(self):
 		db = dbInterface()
@@ -418,10 +432,13 @@ class Player(object):
 		#print "You may build assets for these property types: ", monopolies
 		return monopolies
 
+
 	def total_assets(self):
+
 		''' Returns total financial assets of a player, represented
 		as a dictionary containing the total money, houses and hotels 
 		owned by a player. '''
+
 		total_houses = 0
 		total_hotels = 0
 		for prop in self.properties.values():
@@ -430,23 +447,31 @@ class Player(object):
 		return {'money': self.money ,'houses': total_houses, 
 				'hotels': total_hotels}
 
+
 	def build_asset_prompt(self, bank):
+
 		''' User interface that prompts user to select property they 
 		want to build on. '''
+
 		ongoing = True
 		while ongoing: 
 			menu = {}
-			for num, prop in enumerate(self.properties):
-				print "%s : %s" % (num, prop)
-				menu[num] = self.properties[prop]
+			monopolies = self.check_monopoly()
+			for num, prop in enumerate(self.properties.values()):
+				if prop.type in monopolies:
+					num = str(num)
+					print "%s : %s" % (num, prop.name)
+					menu[num] = self.properties[prop.name]
 
 			print "%s : %s" % (len(self.properties) ,'Cancel')
 			menu[len(self.properties)] = 'Cancel'
 			print "What property would you like to build on?"
 
-			choice = int(raw_input(" >> "))
-			if menu[choice] == 'Cancel' or choice > len(self.properties):
-				break
+			choice = raw_input(" >> ")
+			if choice == str(len(self.properties)):
+				ongoing = False
+				return
+
 			number_to_build = int(raw_input("How much do you want to build? (Max is 5 - a hotel.) "))
 			print "So you want to build %s structures on %s?" % (number_to_build, menu[choice].name)
 
@@ -457,21 +482,6 @@ class Player(object):
 			else:
 				continue
 		return
-
-	def trade_prompt(self, bank):
-		print "Who would you like to trade with?"
-		menu = {}
-		for num, other in enumerate(self.others):
-			print "%s : %s" % (num, other.name)
-			menu[str(num)] = other
-		choice = raw_input(" >> ")
-		
-		s = bank.players[self.name]	# sender
-		r = menu[choice] 			# recipient
-		print s, r
-
-		Interactor.trade(s, r)
-		return 
 
 	def build_asset(self, number, property_, bank):
 		''' You start by building a house, and then automatically
@@ -513,12 +523,26 @@ class Player(object):
 				self.board.tiles[property_.name]['houses'] += number	
 				bank.houses -= number
 				print "Built %s house at %s, it cost $%s." % (number, property_.name, (old_money - self.money))	
-				msg = "'%s' built %s houses at %s." % (self.name, number, property_.name)
+				msg = "^^ '%s' built %s houses at '%s'." % (self.name, number, property_.name)
 		else:
 			print "Sorry, you don't seem to have a monopoly for this set of properties."
 			return
 		gameLogger.add_log(msg=msg)
 		return
+
+	def trade_prompt(self, bank):
+		print "Who would you like to trade with?"
+		menu = {}
+		for num, other in enumerate(self.others):
+			print "%s : %s" % (num, other.name)
+			menu[str(num)] = other
+		choice = raw_input(" >> ")
+		
+		s = bank.players[self.name]	# sender
+		r = menu[choice] 			# recipient
+
+		Interactor.trade(s, r)
+		return 
 
 	def sell_asset(self, number, property_, bank):
 		''' Sell a specified number of some type of asset for half 
@@ -573,19 +597,33 @@ class Player(object):
 	def inspect_self(self):
 		print "_" * 40
 		print " " * 20 + self.name + " " * 20 + "\n"
-		print "Money \t ... $%s" % self.money
+		print "Current Position: %s" % self.current_position()
+		print "Money: \t ... $%s" % self.money
 		print "Properties:"
-		for i, p in enumerate(self.properties.values()):
-			print "\t ...", p.name
+		for i, prop in enumerate(self.properties.values()):
+			print "\t ...", prop.name
 		print "Monopolies:"
-		for i, p in enumerate(self.check_monopoly()):
-			print "\t ...", p.title()
+		for i, color in enumerate(self.check_monopoly()):
+			print "\t ...", color.title()
 		print "_" * 40
 		return
+
+	def inspect_others(self):
+		for other in self.others:
+			print "_" * 40
+			print " " * 20 + other.name + " " * 20 + "\n"
+			print "Current Position: %s" % other.current_position()
+			print "Properties:"
+			for i, prop in enumerate(other.properties.values()):
+				print "\t ...", prop.name
+			print "Monopolies:"
+			for i, color in enumerate(other.check_monopoly()):
+				print "\t ...", color.title()
+			print "_" * 40
+		return		
 		
 	def __repr__(self):
 		return "<class Player '%s'>" % self.name	
-
 
 
 class Cards(object):

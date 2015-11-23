@@ -242,10 +242,9 @@ assert bank.houses == 32
 assert bank.hotels == 11
 print "TEST CHECK - Purchasing of properties work! (IV) - PASS"
 
-pyt
-assert test_player.board.tiles[prop2.name]['houses'] == 3
-assert bank.houses == 29
-assert bank.hotels == 11	
+assert test_player.board.tiles[prop2.name]['houses'] == 0
+assert bank.houses == 32
+assert bank.hotels == 11
 print "TEST CHECK - Purchasing of properties work! (V) - PASS"
 
 # player mechanics - mortgaging/demortgaging a property
