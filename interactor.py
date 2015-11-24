@@ -1,4 +1,4 @@
-from db import dbInterface
+from db import DbInterface
 from gamelogger import *
 
 class TradeError(Exception):
@@ -137,7 +137,7 @@ class Interactor(object):
 					print "\t Back to trade menu ..."
 					continue
 
-				elif menu_choice not in menu.keys():
+				elif menu_choice not in r_menu.keys():
 					continue 
 
 				item = r_menu[menu_choice]
@@ -233,14 +233,14 @@ class Interactor(object):
 		i1 = [prop.name for prop in sender_trade_box['properties']]
 		i2 = [prop.name for prop in receiver_trade_box['properties']]
 
-		gameLogger.add_log(msgtype='trade', p1=s.name, p2=r.name, 
+		GameLogger.add_log(msgtype='trade', p1=s.name, p2=r.name, 
 									i1=i1, m1=m1, i2=i2, m2=m2)
 		return
 
 	@classmethod
 	def card_event(cls, player, current_location):
 		''' '''
-		db = dbInterface()
+		db = DbInterface()
 		p = cls.players[player]
 		with db.conn as conn:
 			# select a card from top of the deck
@@ -249,7 +249,7 @@ class Interactor(object):
 				received_card = db.card_info(conn, current_location, card)
 			print "Drew card: ", card
 			print "-- ", received_card.description
-			gameLogger.add_log(msgtype='card event', name=p.name, card=card, 
+			GameLogger.add_log(msgtype='card event', name=p.name, card=card, 
 				desc=received_card.description)
 			# for general 'money' type cards
 			if received_card.category == "money":
@@ -262,7 +262,7 @@ class Interactor(object):
 					p.money -= (assets['hotels'] * 100)
 					msg = "'%s' paid $%s and $%s for repairs to houses and hotels, respectively." % (p.name, 
 													 assets['houses'] * 25, assets['hotels'] * 100)
-					gameLogger.add_log(msg=msg)
+					GameLogger.add_log(msg=msg)
 
 				# assessed for street repairs 
 				elif received_card.tag == "STRRP":
@@ -271,7 +271,7 @@ class Interactor(object):
 					p.money -= (assets['hotels'] * 115)
 					msg = "'%s' paid $%s and $%s for repairs to houses and hotels, respectively." % (p.name, 
 													 assets['houses'] * 25, assets['hotels'] * 100)
-					gameLogger.add_log(msg=msg)
+					GameLogger.add_log(msg=msg)
 
 				# you have been elected chairman of the board
 				elif received_card.tag == "CHBRD":
@@ -279,7 +279,7 @@ class Interactor(object):
 						p.money -= received_card.effect
 						other.money += received_card.effect
 					msg = "'%s' received $%s from other players." % (p.name, len(p.others) * received_card.effect)
-					gameLogger.add_log(msg=msg)
+					GameLogger.add_log(msg=msg)
 
 				# grand opera night  
 				elif received_card.tag == "GRDON":
@@ -287,7 +287,7 @@ class Interactor(object):
 						p.money += received_card.effect
 						other.money -= received_card.effect					
 					msg =  "'%s' received $%s from other players." % (p.name, len(p.others) * received_card.effect)
-					gameLogger.add_log(msg=msg)
+					GameLogger.add_log(msg=msg)
 
 				# it is your birthday 
 				elif received_card.tag == "YBDAY":
@@ -295,13 +295,13 @@ class Interactor(object):
 						p.money += received_card.effect
 						other.money -= received_card.effect					
 					msg =  "'%s' received $%s from other players." % (p.name, len(p.others) * received_card.effect)
-					gameLogger.add_log(msg=msg)
+					GameLogger.add_log(msg=msg)
 
 				# normal 'Money' card											
 				else:
 					p.money += received_card.effect
 					msg = "'%s' gained $%s." % (p.name, received_card.effect)
-					gameLogger.add_log(msg=msg)
+					GameLogger.add_log(msg=msg)
 
 				return p.post_interact(cls.board, cls.bank)
 			if received_card.category == "move":
@@ -312,7 +312,7 @@ class Interactor(object):
 					p.jail = True
 					p.jail_duration = 3
 					msg = "'%s' went to '%s'." % (p.name, 'Jail')
-					gameLogger.add_log(msg=msg)
+					GameLogger.add_log(msg=msg)
 					p.post_interact(cls.board, cls.bank)
 
 				# Go back 3 spaces
@@ -321,7 +321,7 @@ class Interactor(object):
 					print "You've now on ...", cls.board.layout[p.position]
 					current_location = cls.board.layout[p.position]
 					msg = "'%s' moved back 3 spaces to '%s'." % (p.name, current_location)
-					gameLogger.add_log(msg=msg)
+					GameLogger.add_log(msg=msg)
 					p.interact(current_location, cls.board, cls.bank, p.position)
 					
 				# Advance to nearest Railroad
@@ -337,7 +337,7 @@ class Interactor(object):
 					current_location = cls.board.layout[p.position] 
 					print "You moved to nearest railroad, %s." % current_location
 					msg = "'%s' moved to nearest railroad, '%s'." % (p.name, current_location)
-					gameLogger.add_log(msg=msg)
+					GameLogger.add_log(msg=msg)
 				
 					if current_location in p.properties:
 						print "You already own this property."
@@ -349,7 +349,7 @@ class Interactor(object):
 							p.money -= rent
 							other.money += rent
 							print "You owe %s $%s in rent." % (other.name, rent)
-							gameLogger.add_log(msgtype=rent, p1=p.name, 
+							GameLogger.add_log(msgtype=rent, p1=p.name, 
 												p2=other.name, m=rent)
 							return
 
@@ -366,7 +366,7 @@ class Interactor(object):
 					current_location = cls.board.layout[p.position]	
 					print "You moved to nearest utility, %s." % current_location
 					msg = "'%s' moved to nearest utility, '%s'." % (p.name, current_location)
-					gameLogger.add_log(msg=msg)
+					GameLogger.add_log(msg=msg)
 
 					if current_location in p.properties:
 						print "You already own this property."
@@ -379,7 +379,7 @@ class Interactor(object):
 							p.money -= ((die1 + die2) * 10)
 							other.money += ((die1 + die2) * 10)
 							print "You paid %s $%s!" % (other.name, ((die1 + die2) * 10))
-							gameLogger.add_log(msgtype=rent, p1=p.name, 
+							GameLogger.add_log(msgtype=rent, p1=p.name, 
 												p2=other.name, m=((die1 + die2) * 10))
 						
 					p.purchase(cls.board, cls.bank.all_properties[current_location], cls.bank)
@@ -398,7 +398,7 @@ class Interactor(object):
 			if received_card.category == "item":
 				p.passes.append(card)
 				msg = "'%s' received a 'Get Out of Jail Free' card!" % p.name
-				gameLogger.add_log(msg=msg)
+				GameLogger.add_log(msg=msg)
 				p.post_interact(cls.board, cls.bank)
 
 

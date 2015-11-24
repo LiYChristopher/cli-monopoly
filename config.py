@@ -41,30 +41,3 @@ UPGRADEABLE = ["Mediterranean Avenue", "Baltic Avenue", "Oriental Avenue",
 
 NON_UPGRADEABLE = ["Reading Railroad", "Electric Company", "Pennsylvania Railroad",
 					"B&O Railroad", "Water Works", "Short Line"]
-
-if __name__ == '__main__':
-	import sys
-	print sys.path
-	pass
-	'''
-	import csv
-	from db import dbConnection
-	conn = dbConnection()
-	db_ready = []
-	with open('cards.csv', 'rU') as db:
-		reader = csv.reader(db)
-		for row in reader:
-
-			row[4] = row[4].lower()
-			row = tuple(row)
-			db_ready.append(row)
-	with dbConnection() as conn:
-		cursor = conn.cursor()
-		for row in range(1, len(db_ready)):
-			
-			cursor.execute("INSERT INTO cards VALUES (%s, %s, %s, %s, %s, %s, %s)", db_ready[row])
-		conn.commit()
-	print "Job complete. Check MySQL"
-	'''
-
-

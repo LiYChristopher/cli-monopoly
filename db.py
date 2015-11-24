@@ -18,7 +18,7 @@ def todb(function):
 	return operate
 
 
-class dbInterface(object):
+class DbInterface(object):
 	""" Interface for accessing property and tile information from 
 	the database. 
 	"""
@@ -71,10 +71,6 @@ class dbInterface(object):
 
 
 if __name__ == "__main__":
-	db = dbInterface()
-	with db.conn as conn:
-		x = db.property_info(conn, 'Boardwalk')
-		print x
 	pass
 
 

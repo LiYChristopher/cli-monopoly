@@ -54,7 +54,7 @@ def log_delta(old_time):
 class InvalidLogtype(Exception):
 	pass
 
-class gameLogger(object):
+class GameLogger(object):
 	''' Logs any: rent-payments, property trades,
 	or significant activities for all players.'''
 

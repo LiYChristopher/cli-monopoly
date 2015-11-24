@@ -1,15 +1,27 @@
 
-''' This is the game engine,
+''' Game Engine.
 which intializes essential game elements, and
-coordinates them. These elements include mechanics like turns, 
+coordinates them. These elements include mechanics like turns,
 as well as game state updates (like for rent or logs).
 '''
 
-from models import *
+from models import Board, Cards, Bank, Player
+from models import DbInterface
+from config import DEFAULT_TILES
+from models import Interactor
+from models import GameLogger
+
 
 class Monopoly(object):
-	def __init__(self, num_players, board=Board(DEFAULT_TILES, None), 
-				cards=Cards(CHANCE, COMMUNITY_CHEST)):
+	''' This is the game engine.
+
+		:num_players: - number of players in game (see command-line interface.)
+		:turns: - number of turns in game (see command-line interface.)
+		:board: - by default, Board object using standard tiles.
+		:cards: - by default, Cards object using standard game cards.
+	'''
+
+	def __init__(self, num_players, board=Board(DEFAULT_TILES), cards=Cards()):
 		self.num_players = num_players
 		self.players = {}
 		self.board = board
@@ -35,33 +47,42 @@ class Monopoly(object):
 		Interactor.board = self.board
 		Interactor.bank = self.bank
 		Interactor.cards = self.cards
-		Interactor.db = dbInterface()
+		Interactor.db = DbInterface()
 		print 'Interactor Initialized!'
 		# set up game logger
-		gameLogger.players = self.players
-		gameLogger.player_logs = { p : [] for p in self.players }
+		GameLogger.players = self.players
+		GameLogger.player_logs = {p: [] for p in self.players}
 		print 'Game logger initialized!'
 		return "Setup complete"
 
 	def turn(self):
-		''' Advances game state - orchestrates a turn for each player using 
+		''' Advances game state - orchestrates a turn for each player using
 		the Player.roll_dice() method.'''
 
 		for player in self.players.values():
-			print 
-			print "%s, it's your turn now!" % player.name
-			current_location = player.roll_dice(self.board, self.bank, self.cards)
-			if current_location != None:
+			print "\n%s, it's your turn now!" % player.name
+			current_location = player.roll_dice(self.board, self.bank)
+			if current_location is not None:
 				player.interact(current_location, self.board, self.bank, self.cards)
 			player.check_monopoly()
 			self.bank.update_all_rents(self.players)
-			gameLogger.push_public_logs()
+			GameLogger.push_public_logs()
 		msg = "\n -- End of Turn %s. \n" % self.turns
-		gameLogger.add_log(msgtype='basic', msg=msg)
+		GameLogger.add_log(msgtype='basic', msg=msg)
 		self.turns += 1
 		return
 
+	def play(self, turns):
+		''' Runs the game, following setup, for a duration specified by
+		the command-line argument, 't' (50 by default).'''
+
+		for _ in range(turns):
+			self.turn()
+		return self.summary()
+
 	def summary(self):
+		''' Summary stats displayed following the game. '''
+
 		print "________________"
 		print '%s turns have elapsed in this game so far.' % self.turns
 		for player in self.players.values():
@@ -70,24 +91,3 @@ class Monopoly(object):
 			property_display = [p.name for p in player.properties.values()]
 			print "Monopolies: ", player.check_monopoly()
 			print "Property: ", property_display
-		print "Total Transactions by Bank (Dollars): $", self.bank.total
-
-
-if __name__ == '__main__':
-	import random
-
-	game = Monopoly(3)
-	game.setup()
-	random_player = random.choice(game.players.values())
-	for i in range(17):
-#		print "You currently have ... $%s", test_player.money
-		print "Your current position is....", game.board.layout[random_player.position] 
-		random_player.interact_card(game.cards, game.board, game.bank, 'Chance')
-	pass
-
-'''	for turn in range(0, 10):
-		game.turn()
-
-	game.summary()'''
-	
-	
