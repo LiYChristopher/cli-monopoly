@@ -3,7 +3,7 @@ Includes all essential in-game models; Board, Bank, Player and Cards
 '''
 
 from random import choice, shuffle
-from gamelogger import GameLogger
+from gamelogger import GameLogger, ansi_tile_display
 from interactor import Interactor
 from config import CHANCE, COMMUNITY_CHEST
 from config import NON_PROPS, GAME_CARDS
@@ -12,21 +12,24 @@ from collections import Counter
 
 
 class Board(object):
-	''' Implementation of Monopoly board. Instantiated as argument for class Monopoly()
+	''' Implementation of Monopoly board. Instantiated as argument for
+		class Monopoly().
 
-	:layout_order: - Takes a 4 x 10 matrix (4 lists within one list) of
-	property names in correct layout, and uses that to set the board.
-	:players: -  Dictionary of players, set as attribute in Monopoly.setup()
-
+		:layout_order: - Takes a 4 x 10 matrix (4 lists within one list) of
+		property names in correct layout, and uses that to set the board.
+		:players: -  Dictionary of players, set as attribute in Monopoly.setup()
 	'''
+
 	def __init__(self, layout_order):
 		self.layout = [tile for row in layout_order for tile in row]
-		self.tiles = {str(tile): {"owner": None, "hotels": 0, "houses": 0, 'mortgaged': False}
-					  for tile in self.layout}
+		self.tiles = {str(tile): {"owner": None, "hotels": 0,
+					 			 "houses": 0, 'mortgaged': False}
+					 			 for tile in self.layout}
 
 	def prop_tiles(self):
 		''' Returns only properties, for rent_update
 		purposes. '''
+
 		temp = dict(self.tiles)
 		for tile in (NON_PROPS + GAME_CARDS):
 			del temp[tile]
@@ -34,6 +37,7 @@ class Board(object):
 
 	def check_ownership(self):
 		''' Scan all properties for ownership. '''
+
 		for tile, player in self.tiles.items():
 			if tile["owner"]:
 				print "%s is owned by player" % (tile["owner"])
@@ -47,8 +51,8 @@ class Bank(object):
 
 	:board: - instance of Board() object, instantiated in Monopoly()
 	:players: - Dictionary of players, set as attribute in Monopoly.setup()
-
 	'''
+
 	def __init__(self, board, players):
 		self.houses = 32
 		self.hotels = 12
@@ -59,13 +63,13 @@ class Bank(object):
 		# setup ownable properties
 		with db.conn as conn:
 			self.rent_table = db.rent_table(conn)
-			self.all_properties = {tile: db.property_info(conn, tile) for tile in self.tiles}
+			self.all_properties = {tile: db.property_info(conn, tile)
+			                      for tile in self.tiles}
 
 	def update_all_rents(self, players):
 		''' Calls several helper functions, to make sure rent is updated
-		following any applicable game event.
+		following any applicable game event. '''
 
-		'''
 		self.props_with_assets(players)
 		self.props_mortgaged()
 		self.props_monopoly(players)
@@ -100,6 +104,7 @@ class Bank(object):
 
 	def props_mortgaged(self):
 		''' If a property is mortgaged, set rent to 0.'''
+
 		for tile_name, tile_obj in self.tiles.items():
 			if tile_obj['owner'] is not None:
 				if self.tiles[tile_name]['mortgaged'] is True:
@@ -108,11 +113,12 @@ class Bank(object):
 
 	def props_monopoly(self, players):
 		''' Sets all rents to 2x, when a monopoly exists. '''
+
 		for player in players.values():
 			monopolies = player.check_monopoly()
 			for prop in player.properties.values():
 				if prop.type in monopolies and (self.tiles[prop.name]['houses'] == 0
-										   and self.tiles[prop.name]['hotels'] == 0):
+							and self.tiles[prop.name]['hotels'] == 0):
 					# limits monopoly multiplier
 					if self.rent_table[prop.name]['rent'] != (2 * prop.rent):
 						self.rent_table[prop.name]['rent'] *= 2
@@ -134,7 +140,7 @@ class Bank(object):
 		return
 
 	def railroads_rent(self, players):
-		''' Adjusts railroad rent to account for rent multiplier. (+$25 ea)'''
+		''' Adjusts railroad rent to account for rent multiplier (+$25 ea) '''
 
 		for player in players.values():
 			rr_count = 0
@@ -162,7 +168,6 @@ class Player(object):
 	:name: - name of player
 	:board: - instance of Board() object, instantiated in Monopoly()
 	:cards: - instance of Cards() object, instantiated in Monopoly()
-
 	'''
 
 	def __init__(self, name, board, cards):
@@ -184,9 +189,7 @@ class Player(object):
 
 	def roll_dice(self, board, bank):
 		''' First stage of the interaction chain.
-
-		Check if in jail --> Roll dice --> Move to new position
-		'''
+		Check if in jail --> Roll dice --> Move to new position	'''
 
 		print ' Money: $%s' % self.money
 		print '-' * 15
@@ -209,15 +212,18 @@ class Player(object):
 		else:
 			self.position += (die1 + die2)
 		current_location = self.board.layout[self.position]
-		print "You've landed on %s." % current_location
+		cl_display = ansi_tile_display(current_location)
+		print "You've landed on %s." % cl_display
 
-		msg = "'%s' landed on '%s'." % (self.name, current_location)
+		msg = "'%s' landed on '%s'." % (self.name, cl_display)
 		GameLogger.add_log(msg=msg)
 		return current_location
 
 	def interact(self, current_location, board, bank, cards):
-		''' Given the current position (name of tile), proceed with the appropriate interaction.
-		You can liken this to a 'staging' zone for interactions. '''
+		''' Given the current position (name of tile), proceed with
+		the appropriate interaction. You can liken this to a
+		'staging' zone for interactions. '''
+
 		# interact w/ GAME_CARDS
 		if current_location in GAME_CARDS:
 			if current_location == 'Chance':
@@ -238,9 +244,9 @@ class Player(object):
 		return
 
 	def interact_prop(self, board, bank, current_location):
-		""" checks tile player is currently on,
-		prompts the player to decide what to do.
-		"""
+		''' Checks tile player is currently on,
+		prompts the player to decide what to do. '''
+
 		owned = False
 		if current_location in self.properties:
 			print "You already own %s." % current_location
@@ -303,9 +309,8 @@ class Player(object):
 		''' The interaction stage if a player is in jail.
 
 		Involves attempting to roll three snake-eyes to get out, or
-		prompting the player to pay $50.
+		prompting the player to pay $50. '''
 
-		'''
 		plea = raw_input("Try rolling three snake-eyes to get out? Y/n >")
 		if plea.lower() == 'y':
 			snake_eye_trials = 3
@@ -337,8 +342,7 @@ class Player(object):
 
 	def post_interact(self, board, bank):
 		''' Provides a menu of options for user to choose from at the end of turn.
-		This should always be the final step of the interaction cycle.
-		'''
+		This should always be the final step of the interaction cycle. '''
 
 		unfinished = True
 		options = ['End Turn', 'Trade', 'Mortgage Property',
@@ -405,7 +409,7 @@ class Player(object):
 
 	def purchase(self, board, property_):
 		''' Purchase property in argument, sets up
-		pending transaction for Bank to process at end of turn.'''
+		pending transaction for Bank to process at end of turn. '''
 
 		ongoing = True
 		while ongoing:
@@ -429,7 +433,7 @@ class Player(object):
 	def pay_rent(self, property_owner, property_, bank):
 		''' Based on up-to-date rent information from Bank.rent_table,
 		the Player pays the property_owner the appropriate rent for landing
-		on their property.'''
+		on their property. '''
 
 		print "You owe %s rent." % property_owner
 		if bank.players[property_owner] in self.others:
@@ -439,8 +443,8 @@ class Player(object):
 		rent = bank.rent_table[property_.name]['rent']
 		recipient.money += rent
 		self.money -= bank.rent_table[property_.name]['rent']
-		GameLogger.add_log(msgtype='rent', p1=self.name, p2=property_owner,
-						   m=rent)
+		GameLogger.add_log(msgtype='rent', p1=self.name,
+						   p2=property_owner, m=rent)
 		return
 
 	def check_monopoly(self):
@@ -453,7 +457,6 @@ class Player(object):
 		with db.conn as conn:
 			monopolies = [color for color, count in c.items()
 						  if count == db.prop_set_length(conn, color)[0]]
-		#print "You may build assets for these property types: ", monopolies
 		return monopolies
 
 	def total_assets(self):
@@ -506,7 +509,7 @@ class Player(object):
 	def build_asset(self, number, property_, bank):
 		''' You start by building a house, and then automatically
 		transition to hotel. There's a limit of 1 hotel in this
-		game. To be activated in post-interaction'''
+		game. To be activated in post-interaction. '''
 
 		# if hotel already here, don't build.
 		if self.board.tiles[property_.name]['hotels'] == 1:
@@ -552,8 +555,7 @@ class Player(object):
 
 	def trade_prompt(self, bank):
 		''' Stages the Interactor.trade function, by prompting
-		the user to select who they want to trade with.
-		'''
+		the user to select who they want to trade with. '''
 
 		print "Who would you like to trade with?"
 		menu = {}
@@ -598,7 +600,8 @@ class Player(object):
 			self.board.tiles[property_.name]['houses'] *= number
 		else:
 			self.board.tiles[property_.name]['houses'] -= number
-		print ' -- %s sold %s houses for $%s.' % (self.name, number, (self.money - old_money))
+		print ' -- %s sold %s houses for $%s.' % (self.name, number,
+												(self.money - old_money))
 		return
 
 	def mortgage_property(self, property_, bank):
@@ -624,9 +627,7 @@ class Player(object):
 		- Current Position
 		- Money
 		- Properties
-		- Monopolies
-
-		'''
+		- Monopolies '''
 
 		print "_" * 40
 		print " " * 20 + self.name + " " * 20 + "\n"
@@ -634,7 +635,7 @@ class Player(object):
 		print "Money: \t ... $%s" % self.money
 		print "Properties:"
 		for prop in self.properties.values():
-			print "\t ...", prop.name
+			print "\t ...", ansi_tile_display(prop.name)
 		print "Monopolies:"
 		for color in self.check_monopoly():
 			print "\t ...", color.title()
@@ -650,7 +651,7 @@ class Player(object):
 			print "Current Position: %s" % other.current_position()
 			print "Properties:"
 			for prop in other.properties.values():
-				print "\t ...", prop.name
+				print "\t ...", ansi_tile_display(prop.name)
 			print "Monopolies:"
 			for color in other.check_monopoly():
 				print "\t ...", color.title()
@@ -662,10 +663,9 @@ class Player(object):
 
 
 class Cards(object):
-	'''
-	A representation of both decks of game cards. Used by game engine to
-	manage card circulation, and interpretation of each card's effects.
-	'''
+	''' A representation of both decks of game cards. Used by game engine to
+	manage card circulation, and interpretation of each card's effects. '''
+
 	def __init__(self):
 		self.chance = CHANCE
 		self.communitychest = COMMUNITY_CHEST
@@ -691,6 +691,7 @@ class Cards(object):
 		return
 
 if __name__ == '__main__':
+	pass
 	'''
 	b = Board(DEFAULT_TILES, None)
 	c = Cards(COMMUNITY_CHEST, CHANCE)

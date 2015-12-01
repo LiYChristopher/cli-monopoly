@@ -31,15 +31,16 @@ class Monopoly(object):
 
 	def setup(self):
 		''' Factory method that sets up Player objects, and essential
-		in-game properties like bank balances. '''
+		in-game elements e.g. the game logger. '''
 
 		# creates all players
-		for player in range(1, self.num_players+1):
+		for player in range(1, self.num_players + 1):
 			name = raw_input("What's your name player? > ")
 			self.players[name] = Player(name, self.board, self.cards)
 		# includes name of other players, for future interaction purposes
 		for player in self.players.values():
-			player.others = [other for other in self.players.values() if other != player]
+			player.others = [other for other in self.players.values()
+							if other != player]
 			print "Player %s has been added to game." % (player.name)
 		self.cards.shuffle_cards()
 		# set up interactor

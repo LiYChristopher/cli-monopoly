@@ -10,23 +10,24 @@ interactor.py
 import argparse
 from monopoly import Monopoly
 
+
 def command_line():
-	desc = '''  	 _____________________________________________________												  
- 	|     M     O     N     O     P     O     L     Y     |                     													  
+	desc = '''  	 _____________________________________________________
+ 	|     M     O     N     O     P     O     L     Y     |         													  
  	 -----------------------------------------------------
 
-	This is a command-line interpretation of Hasbro's famous 		
+	This is a command-line interpretation of Hasbro's famous
 	board game, Monopoly. This is intended to be a personal project,
 	so no party is profiting in any way from this creation. Enjoy!'''
 
-	parser = argparse.ArgumentParser(version='0.1', 
-				formatter_class=argparse.RawDescriptionHelpFormatter, 
-				description=desc)
+	parser = argparse.ArgumentParser(version='0.1',
+				                     formatter_class=argparse.RawDescriptionHelpFormatter,
+				                     description=desc)
 
-	parser.add_argument('-p', type=int, dest='players', help="Number of Players",
-						default=3)
+	parser.add_argument('-players', type=int, dest='players',
+		                help="Number of Players", default=3)
 
-	parser.add_argument('-t', type=int, dest='turns', 
+	parser.add_argument('-turns', type=int, dest='turns',
 						help="Number of Turns (default 50)", default=50)
 
 	return parser.parse_args()
@@ -34,9 +35,7 @@ def command_line():
 if __name__ == '__main__':
 
 	args = command_line()
-	print args.players
-	
+
 	monopoly = Monopoly(args.players)
 	monopoly.setup()
 	monopoly.play(args.turns)
-	
