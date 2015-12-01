@@ -1,7 +1,7 @@
 ''' The Interactor class '''
 
 from db import DbInterface
-from gamelogger import GameLogger, ansi_tile_display
+from gamelogger import GameLogger, ansi_tile
 from random import choice
 
 
@@ -19,9 +19,15 @@ class Interactor(object):
 
 	@classmethod
 	def trade(cls, s, r):
+		''' Displays a series of menus to coordinate
+		a trade between two players, confirms actions,
+		manages transaction and then logs trade.
+		'''
 
 		# load items into trade box - sender
 		sender_trade_box = cls.trade_box(s)
+		if sender_trade_box is None:
+			return	 # Trade is cancelled
 
 		# load items into trade box - receiver
 		print "Sending offer to %s ...\n" % r.name
@@ -53,7 +59,7 @@ class Interactor(object):
 			r.money -= receiver_trade_box['money']
 
 			# Log transaction
-			print 'Transaction Complete - see log'
+			print 'Transaction Complete - see log\n'
 
 			m1 = sender_trade_box['money']
 			m2 = receiver_trade_box['money']
@@ -62,23 +68,19 @@ class Interactor(object):
 
 			GameLogger.add_log(msgtype='trade', p1=s.name, p2=r.name, i1=i1, m1=m1, i2=i2, m2=m2)
 			return
-		print "Trade has been rejected."
+		print "Trade has been rejected.\n"
 		return
 
 	@classmethod
 	def trade_box(cls, player):
-
-		''' Displays a series of menus to coordinate
-		a trade between two players. Since this is the command-line
-		version, it's not optimal - but it works!
-		'''
+		''' Takes player through a series of menus, prompting player
+		to load up their trade box with desired offer (property, money). '''
 
 		player_trade_box = {'name': player.name, 'money': 0, 'properties': []}
 
-		ongoing_s = True
-		# Sender
-		while ongoing_s:
+		ongoing = True
 
+		while ongoing:
 			print "What would you like to trade? >"
 			choice = raw_input(" (0: Properties 1: Money 2: Passes 3: Confirm 4: Start Over 5: Cancel) > ")
 
@@ -87,7 +89,7 @@ class Interactor(object):
 				player_menu = {}
 				# loading up items to trade
 				for i, prop in enumerate(player.properties.values()):
-					print "\t %s : %s" % (i, ansi_tile_display(prop.name))
+					print "\t %s : %s" % (i, ansi_tile(prop.name))
 					player_menu[str(i)] = prop
 				print "\t %s : Back" % len(player.properties)
 				player_menu[len(player.properties)] = "Back"
@@ -129,14 +131,14 @@ class Interactor(object):
 				print "\t - $%s" % player_trade_box['money']
 				print "\t Properties: "
 				for prop in player_trade_box['properties']:
-					print "\t -", prop.name
+					print "\t -", ansi_tile(prop.name)
 				offer = raw_input("Can you confirm this offer? (y/n) > ").lower()
 				if offer == 'y':
-					ongoing_s = False
+					ongoing = False
 				elif offer == 'n':
 					continue
 				else:
-					ongoing_s = False
+					ongoing = False
 
 			# Start over
 			elif choice == '4':
@@ -148,19 +150,21 @@ class Interactor(object):
 			# Cancel Trade
 			elif choice == '5':
 				print "Cancelling Trade ..."
-				ongoing_s = False
-				return
+				ongoing = False
+				return None
 
 		return player_trade_box
 
 	@classmethod
 	def trade_accept(cls, s_trade_box, r):
+		''' 'Presents' offer to the recipient, and gives them
+		the choice of whether or not they want to proceed. '''
 
 		print "'%s' would like to trade: " % s_trade_box['name']
 		if s_trade_box['properties']:
 			print "Properties:"
 			for prop in s_trade_box['properties']:
-				print "- ", ansi_tile_display(prop.name)
+				print "- ", ansi_tile(prop.name)
 		if s_trade_box['money']:
 			print "Money: $%s \n" % s_trade_box['money']
 
@@ -171,23 +175,24 @@ class Interactor(object):
 		else:
 			return False
 
-		# Final confirmation, exchange of trade boxes.
-
 	@classmethod
 	def trade_confirm(cls, sender_trade_box, receiver_trade_box):
+		''' Produces summary of trade from both traders, based on
+		contents of their trade boxes. Prompts final confirmation.'''
+
 		# Sender
 		print ("_" * 20) + " SUMMARY " + (20 * "_")
 		print "'%s' is trading: " % (sender_trade_box['name'])
 		print "Properties:"
 		for prop in sender_trade_box['properties']:
-			print "- ", ansi_tile_display(prop.name)
+			print "- ", ansi_tile(prop.name)
 		print "Money: $%s \n" % sender_trade_box['money']
 
 		# Receiver
 		print "... For '%s's': " % (receiver_trade_box['name'])
 		print "Properties:"
 		for prop in receiver_trade_box['properties']:
-			print "- ", ansi_tile_display(prop.name)
+			print "- ", ansi_tile(prop.name)
 		print "Money: $%s \n" % receiver_trade_box['money']
 
 		s_confirm = raw_input("%s, is this okay? (y/n)" % sender_trade_box['name']).lower()
@@ -244,7 +249,7 @@ class Interactor(object):
 					for other in p.others:
 						p.money += received_card.effect
 						other.money -= received_card.effect
-					msg = "'%s' received $%s from other players." % (p.name, 
+					msg = "'%s' received $%s from other players." % (p.name,
 											len(p.others) * received_card.effect)
 					GameLogger.add_log(msg=msg)
 
@@ -282,7 +287,7 @@ class Interactor(object):
 					current_location = cls.board.layout[p.position]
 					msg = "'%s' moved back 3 spaces to '%s'." % (p.name, current_location)
 					GameLogger.add_log(msg=msg)
-					p.interact(current_location, cls.board, cls.bank, p.position)
+					p.interact(current_location, cls.board, cls.bank)
 
 				# Advance to nearest Railroad
 				elif received_card.tag == "ADVNR":
@@ -294,18 +299,18 @@ class Interactor(object):
 						p.position = 25
 					elif 30 < p.position < 40:
 						p.position = 35
-					current_location = cls.board.layout[p.position]
-					print "You moved to nearest railroad, %s." % current_location
-					msg = "'%s' moved to nearest railroad, '%s'." % (p.name, current_location)
+					new_location = cls.board.layout[p.position]
+					print "You moved to nearest railroad, %s." % new_location
+					msg = "'%s' moved to nearest railroad, '%s'." % (p.name, new_location)
 					GameLogger.add_log(msg=msg)
 
-					if current_location in p.properties:
+					if new_location in p.properties:
 						print "You already own this property."
 						return
 
 					for other in p.others:
-						if current_location in other.properties:
-							rent = cls.bank.rent_table[p.position]['rent'] * 2
+						if new_location in other.properties:
+							rent = cls.bank.rent_table[new_location]['rent'] * 2
 							p.money -= rent
 							other.money += rent
 							print "You owe %s $%s in rent." % (other.name, rent)
@@ -313,7 +318,7 @@ class Interactor(object):
 												p2=other.name, m=rent)
 							return
 
-					p.purchase(cls.board, cls.bank.all_properties[current_location], cls.bank)
+					p.purchase(cls.board, cls.bank.all_properties[new_location])
 					p.post_interact(cls.board, cls.bank)
 					return
 
@@ -323,28 +328,28 @@ class Interactor(object):
 						p.position = 12
 					elif 22 <= p.position < 40:
 						p.position = 28
-					current_location = cls.board.layout[p.position]
-					print "You moved to nearest utility, %s." % current_location
-					msg = "'%s' moved to nearest utility, '%s'." % (p.name, current_location)
+					new_location = cls.board.layout[p.position]
+					print "You moved to nearest utility, %s." % new_location
+					msg = "'%s' moved to nearest utility, '%s'." % (p.name, new_location)
 					GameLogger.add_log(msg=msg)
 
-					if current_location in p.properties:
+					if new_location in p.properties:
 						print "You already own this property."
 						return
 
 					for other in p.others:
-						if current_location in other.properties:
+						if new_location in other.properties:
 							die1 = choice(range(1, 7))
 							die2 = choice(range(1, 7))
-							p.money -= ((die1 + die2) * 10)
-							other.money += ((die1 + die2) * 10)
+							rent = ((die1 + die2) * 10)
+							p.money -= rent
+							other.money += rent
 							print "You paid %s $%s!" % (other.name, ((die1 + die2) * 10))
-							GameLogger.add_log(msgtype=rent, p1=p.name, 
+							GameLogger.add_log(msgtype=rent, p1=p.name,
 											p2=other.name, m=((die1 + die2) * 10))
 
 					p.purchase(cls.board,
-						       cls.bank.all_properties[current_location],
-						       cls.bank)
+								cls.bank.all_properties[new_location])
 					p.post_interact(cls.board, cls.bank)
 					return
 
@@ -354,8 +359,8 @@ class Interactor(object):
 						print "You've passed Go! collect $200."
 						p.money += 200
 					p.position = received_card.effect
-					current_location = cls.board.layout[p.position]
-					p.interact(current_location, cls.board, cls.bank, p.position)
+					new_location = cls.board.layout[p.position]
+					p.interact(new_location, cls.board, cls.bank)
 
 			if received_card.category == "item":
 				p.passes.append(card)

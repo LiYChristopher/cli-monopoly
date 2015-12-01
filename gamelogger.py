@@ -131,7 +131,7 @@ class GameLogger(object):
 		return
 
 
-def ansi_tile_display(tile_name):
+def ansi_tile(tile_name):
 	''' Displays property names with appropriate ANSI terminal colors. '''
 
 	colored_out = tile_name

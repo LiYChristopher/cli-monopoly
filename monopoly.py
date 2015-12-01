@@ -32,7 +32,7 @@ class Monopoly(object):
 	def setup(self):
 		''' Factory method that sets up Player objects, and essential
 		in-game elements e.g. the game logger. '''
-
+		print "\nWelcome to command-line Monopoly! Let's set your game up.\n"
 		# creates all players
 		for player in range(1, self.num_players + 1):
 			name = raw_input("What's your name player? > ")
@@ -62,14 +62,18 @@ class Monopoly(object):
 
 		for player in self.players.values():
 			print "\n%s, it's your turn now!" % player.name
+			player.inspect_self()
+
 			current_location = player.roll_dice(self.board, self.bank)
 			if current_location is not None:
-				player.interact(current_location, self.board, self.bank, self.cards)
+				player.interact(current_location, self.board, self.bank)
+
 			player.check_monopoly()
 			self.bank.update_all_rents(self.players)
 			GameLogger.push_public_logs()
+
 		msg = "\n -- End of Turn %s. \n" % self.turns
-		GameLogger.add_log(msgtype='basic', msg=msg)
+		GameLogger.add_log(msg=msg)
 		self.turns += 1
 		return
 

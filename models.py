@@ -3,7 +3,7 @@ Includes all essential in-game models; Board, Bank, Player and Cards
 '''
 
 from random import choice, shuffle
-from gamelogger import GameLogger, ansi_tile_display
+from gamelogger import GameLogger, ansi_tile
 from interactor import Interactor
 from config import CHANCE, COMMUNITY_CHEST
 from config import NON_PROPS, GAME_CARDS
@@ -134,7 +134,7 @@ class Bank(object):
 					util_count += 1
 			if util_count == 2:
 				for prop_name, prop_info in self.rent_table.items():
-					if prop_info['type'] == 'utility':
+					if prop_info['type'] == 'utility' and self.tiles[prop_name]['owner'] is player.name:
 						self.rent_table[prop_name]['rent'] = 10
 				return
 		return
@@ -151,7 +151,7 @@ class Bank(object):
 				continue
 			for prop_name, prop_info in self.rent_table.items():
 				rent = 25 * (2 ** (rr_count - 1))
-				if prop_info['type'] == 'rr':
+				if prop_info['type'] == 'rr' and self.tiles[prop_name]['owner'] is player.name:
 					self.rent_table[prop_name]['rent'] = rent
 		return
 
@@ -179,8 +179,11 @@ class Player(object):
 		self.properties = {}
 		self.money = 1475
 		self.position = 0
+		self.last_roll = 0
 		self.jail = False
 		self.jail_duration = 0
+		self.repeat_turn = False
+		self.repeat_count = 0
 		self.others = []
 
 	def current_position(self):
@@ -191,8 +194,10 @@ class Player(object):
 		''' First stage of the interaction chain.
 		Check if in jail --> Roll dice --> Move to new position	'''
 
-		print ' Money: $%s' % self.money
-		print '-' * 15
+		# send to jail if this is the third double
+		if self.repeat_count >= 3:
+			self.jail = True
+			self.duration = 3
 
 		# if in jail, use jail_interaction method
 		if self.jail is True:
@@ -204,6 +209,11 @@ class Player(object):
 		print "You're moving %s spaces" % (die1 + die2)
 		GameLogger.add_log(msgtype='dice', name=self.name, d1=die1, d2=die2)
 
+		# repeat turn
+		if die1 == die2:
+			self.repeat_count += 1
+			self.repeat_turn = True
+
 		# If you pass Go, collect $200
 		if self.position + (die1 + die2) >= 40:
 			print "You've passed Go: Collect $200!"
@@ -211,15 +221,17 @@ class Player(object):
 			self.position = (self.position + (die1 + die2)) % 40
 		else:
 			self.position += (die1 + die2)
+
+		self.last_roll = die1 + die2
 		current_location = self.board.layout[self.position]
-		cl_display = ansi_tile_display(current_location)
+		cl_display = ansi_tile(current_location)
 		print "You've landed on %s." % cl_display
 
 		msg = "'%s' landed on '%s'." % (self.name, cl_display)
 		GameLogger.add_log(msg=msg)
 		return current_location
 
-	def interact(self, current_location, board, bank, cards):
+	def interact(self, current_location, board, bank):
 		''' Given the current position (name of tile), proceed with
 		the appropriate interaction. You can liken this to a
 		'staging' zone for interactions. '''
@@ -321,17 +333,22 @@ class Player(object):
 				print die1, die2
 				if die1 == die2:
 					snake_eye_trials -= 1
+					if snake_eye_trials == 0:
+						print "You rolled out of jail!"
+						self.jail = False
+						break
 				else:
 					msg = "'%s' unsuccessfully tried to get out of jail." % self.name
 					GameLogger.add_log(msg=msg)
 					print "Unsuccessful attempt!"
 					self.jail_duration -= 1
-					if self.jail_duration == 0:
+					if self.jail_duration <= 0:
 						print "Hey, you're out of jail next turn!"
 						self.jail = False
 						self.money -= 50
-					break
-		elif plea.lower() == 'n':
+					return
+
+		elif plea.lower() != 'y':
 			payoff = raw_input("Pay $50 to get out? Y/n >")
 			if payoff.lower() == 'y':
 				msg = "'%s' paid $50 to get out of jail." % self.name
@@ -346,8 +363,8 @@ class Player(object):
 
 		unfinished = True
 		options = ['End Turn', 'Trade', 'Mortgage Property',
-				   'Purchase Asset', 'Sell Asset', 'Inspect Self',
-				   'Others Inspect', 'Display Game Logs']
+					'Purchase Asset', 'Sell Asset', 'Inspect Self',
+					'Others Inspect', 'Display Game Logs']
 
 		# add additional options based on state
 		if not self.check_monopoly():
@@ -364,8 +381,7 @@ class Player(object):
 		while unfinished:
 			# use Get out of Jail Free if it's available
 			if 'Get out of Jail Free' in self.passes and self.jail is True:
-				get_out = raw_input("You have a 'Get out of Jail Free' card,\
-								would you like to use it? (Y/n)")
+				get_out = raw_input("You have a 'Get out of Jail Free' card, would you like to use it? (Y/n)")
 				if get_out.lower() == 'y':
 					self.jail = False
 					print "You're out of jail!"
@@ -379,8 +395,9 @@ class Player(object):
 			menu_choice = raw_input("Enter your choice here >> ").lower()
 			if menu_choice == 'e':
 				GameLogger.add_log(msgtype='turn', name=self.name)
-				print "_" * 20
-				unfinished = False
+				print "_" * 40
+				print '\n'
+				unfinished = False				# End Turn
 
 			elif menu_choice == 't':
 				self.trade_prompt(bank)			# Trade
@@ -405,6 +422,16 @@ class Player(object):
 					print i
 			else:
 				continue
+		# repeat turn if required
+		if self.repeat_turn is True:
+			msg = "It's %s's turn again, because doubles were rolled!" % self.name
+			print "It's your turn, %s!" % self.name
+			GameLogger.add_log(msg=msg)
+			self.repeat_turn = False
+			current_location = self.roll_dice(board, bank)
+			if current_location is not None:
+				self.interact(current_location, board, bank)
+		self.repeat_count = 0
 		return
 
 	def purchase(self, board, property_):
@@ -440,11 +467,14 @@ class Player(object):
 			recipient = bank.players[property_owner]
 		else:
 			return
+
 		rent = bank.rent_table[property_.name]['rent']
+		if property_.type == 'utility':
+			rent *= self.last_roll
 		recipient.money += rent
 		self.money -= bank.rent_table[property_.name]['rent']
 		GameLogger.add_log(msgtype='rent', p1=self.name,
-						   p2=property_owner, m=rent)
+							p2=property_owner, m=rent)
 		return
 
 	def check_monopoly(self):
@@ -476,22 +506,23 @@ class Player(object):
 		''' User interface that prompts user to select property they
 		want to build on. '''
 
+		menu = {}
+		monopolies = self.check_monopoly()
+		for num, prop in enumerate(self.properties.values()):
+			if prop.type in monopolies:
+				num = str(num)
+				print "%s : %s" % (num, prop.name)
+				menu[num] = self.properties[prop.name]
+		print "%s : %s" % (len(menu) + 1, 'Cancel')
+		menu[len(menu) + 1] = 'Cancel'
 		ongoing = True
 		while ongoing:
-			menu = {}
-			monopolies = self.check_monopoly()
-			for num, prop in enumerate(self.properties.values()):
-				if prop.type in monopolies:
-					num = str(num)
-					print "%s : %s" % (num, prop.name)
-					menu[num] = self.properties[prop.name]
 
-			print "%s : %s" % (len(self.properties), 'Cancel')
-			menu[len(self.properties)] = 'Cancel'
 			print "What property would you like to build on?"
-
 			prop_choice = raw_input(" >> ")
-			if prop_choice == str(len(self.properties)):
+			if prop_choice not in menu.keys():
+				continue
+			elif prop_choice == str(len(menu) + 1):
 				ongoing = False
 				return
 
@@ -512,8 +543,9 @@ class Player(object):
 		game. To be activated in post-interaction. '''
 
 		# if hotel already here, don't build.
-		if self.board.tiles[property_.name]['hotels'] == 1:
-			return " -- You can't build anymore properties here!"
+		if self.board.tiles[property_.name]['hotels'] >= 1:
+			print " -- You can't build anymore properties here!"
+			return
 		# if the # of houses we want to build > the amount we can build
 		# build a hotel
 		current_developments = self.board.tiles[property_.name]['houses']
@@ -540,13 +572,17 @@ class Player(object):
 				self.board.tiles[property_.name]['hotels'] += 1
 				bank.hotels -= 1
 				self.money += ((number + current_developments) - 5) * u_cost
-				print "Built 1 hotel at %s, it cost $%s." % (property_.name, (old_money - self.money))
-				msg = "'%s' built 1 hotel at %s." % (self.name, property_.name)
+				print "Built 1 hotel at %s, it cost $%s." % (property_.name,
+															(old_money - self.money))
+				msg = "'%s' built 1 hotel at %s." % (self.name,
+													ansi_tile(property_.name))
 			else:
 				self.board.tiles[property_.name]['houses'] += number
 				bank.houses -= number
-				print "Built %s house at %s, it cost $%s." % (number, property_.name, (old_money - self.money))
-				msg = "^^ '%s' built %s houses at '%s'." % (self.name, number, property_.name)
+				print "Built %s house at %s, it cost $%s." % (number,
+									property_.name, (old_money - self.money))
+				msg = "^^ '%s' built %s houses at '%s'." % (self.name, number,
+									ansi_tile(property_.name))
 		else:
 			print "Sorry, you don't seem to have a monopoly for this set of properties."
 			return
@@ -557,16 +593,20 @@ class Player(object):
 		''' Stages the Interactor.trade function, by prompting
 		the user to select who they want to trade with. '''
 
-		print "Who would you like to trade with?"
 		menu = {}
+		valid = False
+		print "Who would you like to trade with?"
 		for num, other in enumerate(self.others):
 			print "%s : %s" % (num, other.name)
 			menu[str(num)] = other
-		choice = raw_input(" >> ")
-
-		s = bank.players[self.name]  # sender
-		r = menu[choice] 			 # recipient
-
+		while not valid:
+			choice = raw_input(" >> ")
+			if choice not in menu.keys():
+				continue
+			else:
+				s = bank.players[self.name]  # sender
+				r = menu[choice] 			 # recipient
+				valid = True
 		Interactor.trade(s, r)
 		return
 
@@ -635,7 +675,7 @@ class Player(object):
 		print "Money: \t ... $%s" % self.money
 		print "Properties:"
 		for prop in self.properties.values():
-			print "\t ...", ansi_tile_display(prop.name)
+			print "\t ...", ansi_tile(prop.name)
 		print "Monopolies:"
 		for color in self.check_monopoly():
 			print "\t ...", color.title()
@@ -651,7 +691,7 @@ class Player(object):
 			print "Current Position: %s" % other.current_position()
 			print "Properties:"
 			for prop in other.properties.values():
-				print "\t ...", ansi_tile_display(prop.name)
+				print "\t ...", ansi_tile(prop.name)
 			print "Monopolies:"
 			for color in other.check_monopoly():
 				print "\t ...", color.title()

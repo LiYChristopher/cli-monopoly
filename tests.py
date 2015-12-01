@@ -10,7 +10,7 @@ Consider using unittest module, for now use assertion tests.
 from models import Board
 from config import DEFAULT_TILES
 
-b = Board(DEFAULT_TILES, None)
+b = Board(DEFAULT_TILES)
 endpoint = b.layout.index('Reading Railroad')
 pos = 1
 circuit_dist = (40 - pos) + endpoint
@@ -24,8 +24,8 @@ assert b.layout[endpoint] == b.layout[pos]
 from models import Board, Cards, Player
 from config import CHANCE, COMMUNITY_CHEST
 
-b = Board(DEFAULT_TILES, None)
-c = Cards(CHANCE, COMMUNITY_CHEST)
+b = Board(DEFAULT_TILES)
+c = Cards()
 test_player = Player('tester', b, c)
 
 b.tiles['Oriental Avenue']['owner'] = test_player.name
@@ -39,12 +39,12 @@ print "TEST CHECK - Property Ownership works! - PASS"
 
 from models import Board, Cards, Player
 from config import CHANCE, COMMUNITY_CHEST
-from db import dbInterface
+from db import DbInterface
 
-b = Board(DEFAULT_TILES, None)
-c = Cards(CHANCE, COMMUNITY_CHEST)
+b = Board(DEFAULT_TILES)
+c = Cards()
 test_player = Player('tester', b, c)
-db = dbInterface()
+db = DbInterface()
 with db.conn as conn:
 	prop1 = db.property_info(conn, 'Oriental Avenue')
 	prop2 = db.property_info(conn, 'New York Avenue')
@@ -70,11 +70,10 @@ assert b.tiles['New York Avenue']['houses'] == 1
 print "TEST CHECK - Asset acquisition works! - PASS"
 
 # cards mechanics - moving cards to bottom of deck
-
 from models import Cards
 from config import CHANCE, COMMUNITY_CHEST
 
-c = Cards(CHANCE, COMMUNITY_CHEST)
+c = Cards()
 c.shuffle_cards()
 ctop_of_deck = c.chance
 cctop_of_deck = c.communitychest
@@ -85,21 +84,48 @@ assert c.chance == ctop_of_deck
 assert c.communitychest == cctop_of_deck
 print "TEST CHECK - Card Shuffling Works! - PASS"
 
-# card mechanics - Make General Repairs and Assessed for street repairs
+# card mechanics - all community chest
+from models import Cards, Player, Board, Bank
+from config import CHANCE, COMMUNITY_CHEST
+from interactor import Interactor
+
+c = Cards()
+b = Board(DEFAULT_TILES)
+c.shuffle_cards()
+
+x = Player('test', b, c)
+bank = Bank(b, {'test': x})
+Interactor.players = {'test': x}
+Interactor.board = b
+Interactor.bank = bank
+Interactor.cards = c
+
+for i in range(17):
+	print "PLAYER's current location BEFORE", x.current_position()
+	x.interact('Chance', b, bank, c)
+	print "PLAYER's current location AFTER\n\n", x.current_position()
+
+print "TEST CHECK - All Chance cards"
+
+for i in range(17):
+	print "PLAYER's current location BEFORE", x.current_position()
+	x.interact('Community Chest', b, bank, c)
+	print "PLAYER's current location AFTER\n\n", x.current_position()
+
+print "TEST CHECK - All Community Chest cards"
 
 # card mechanics - monopoly detection
 from models import Board, Cards, Bank
 
-
-b = Board(DEFAULT_TILES, None)
-c = Cards(COMMUNITY_CHEST, CHANCE)
+b = Board(DEFAULT_TILES)
+c = Cards()
 
 x = Player('Noah', b, c)
 y = Player('Ev', b, c)
 z = Player('Jack', b, c)
 players = {'Noah': x, 'Ev': y, 'Jack': z}
 
-db = dbInterface()
+db = DbInterface()
 with db.conn as conn:
 	prop1a = db.property_info(conn, 'Reading Railroad',)
 	prop1b = db.property_info(conn, 'B&O Railroad', )
@@ -123,7 +149,7 @@ z.properties['B&O Railroad'] = prop1b
 b.tiles['B&O Railroad']['owner'] = z.name
 
 x.properties['St. Charles Place'] = prop2a
-b.tiles['St. Charles Place']['owner'] = x.name	
+b.tiles['St. Charles Place']['owner'] = x.name
 
 bank.update_all_rents(players)
 
@@ -150,7 +176,6 @@ assert bank.rent_table['St. Charles Place']['rent'] == 10
 print "TEST CHECK - Rent Updates > Acquisition Round 2 - PASS"
 
 # ACQUISITIONS ROUND 3
-
 x.properties['States Avenue'] = prop2b
 b.tiles['States Avenue']['owner'] = x.name
 
@@ -172,10 +197,10 @@ bank.update_all_rents(players)
 assert x.check_monopoly() == ['magenta']
 print "TEST CHECK - Monopoly Check > Acquisition Round 3 - PASS"
 
-# database - test dbInterface.card_info()
+# database - test DbInterface.card_info()
 from db import *
 
-db = dbInterface()
+db = DbInterface()
 with db.conn as conn:	
 	card = db.card_info(conn, "CHANCE", "Take a Trip to Reading Railroad")
 	assert card.name == "take a trip to reading railroad"
@@ -184,10 +209,10 @@ print "TEST CHECK - Card info interface works (dB connection a success!) - PASS"
 
 # player mechanics - interact()
 from models import Board, Cards, Player, Bank
-from db import dbInterface
+from db import DbInterface
 
-b = Board(DEFAULT_TILES, None)
-c = Cards(CHANCE, COMMUNITY_CHEST)
+b = Board(DEFAULT_TILES)
+c = Cards()
 
 test_player = Player("test", b, c)
 test_player1 = Player("test1", b, c)
@@ -196,23 +221,23 @@ bank = Bank(b, {'test': test_player, 'test1': test_player1})
 
 # player mechanics - Building Assets
 from models import Board, Cards, Bank
-from db import dbInterface
+from db import DbInterface
 
-b = Board(DEFAULT_TILES, None)
-c = Cards(CHANCE, COMMUNITY_CHEST)
+b = Board(DEFAULT_TILES)
+c = Cards()
 
 test_player = Player("test", b, c)
 test_player1 = Player("test1", b, c)
 
 bank = Bank(b, {'test': test_player, 'test1': test_player1})
 
-db = dbInterface()
+db = DbInterface()
 with db.conn as conn:
-	test_player.purchase(b, db.property_info(conn, 'States Avenue'), bank)
-	test_player.purchase(b, db.property_info(conn, 'Mediterranean Avenue'), bank)	
-	test_player.purchase(b, db.property_info(conn, 'Baltic Avenue'), bank)			
-	test_player.purchase(b, db.property_info(conn, 'Water Works'), bank)	
-	
+	test_player.purchase(b, db.property_info(conn, 'States Avenue'))
+	test_player.purchase(b, db.property_info(conn, 'Mediterranean Avenue'))
+	test_player.purchase(b, db.property_info(conn, 'Baltic Avenue'))
+	test_player.purchase(b, db.property_info(conn, 'Water Works'))
+
 
 prop1 = test_player.properties['Mediterranean Avenue']
 prop2 = test_player.properties['Baltic Avenue']
@@ -249,20 +274,20 @@ print "TEST CHECK - Purchasing of properties work! (V) - PASS"
 
 # player mechanics - mortgaging/demortgaging a property
 from models import Board, Cards, Bank
-from db import dbInterface
+from db import DbInterface
 
-b = Board(DEFAULT_TILES, None)
-c = Cards(CHANCE, COMMUNITY_CHEST)
+b = Board(DEFAULT_TILES)
+c = Cards()
 
 test_player = Player("test", b, c)
 test_player1 = Player("test1", b, c)
 
 bank = Bank(b, {'test': test_player, 'test1': test_player1})
 
-db = dbInterface()
+db = DbInterface()
 
 with db.conn as conn:
-	test_player.purchase(b, db.property_info(conn, 'Electric Company'), bank)		
+	test_player.purchase(b, db.property_info(conn, 'Electric Company'))
 	prop4 = test_player.properties['Electric Company']
 
 test_player.mortgage_property(prop4, bank)
