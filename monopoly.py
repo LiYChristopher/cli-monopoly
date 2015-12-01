@@ -68,6 +68,9 @@ class Monopoly(object):
 			if current_location is not None:
 				player.interact(current_location, self.board, self.bank)
 
+			if player.money < 0:
+				pass
+				# bankrupcty protocol
 			player.check_monopoly()
 			self.bank.update_all_rents(self.players)
 			GameLogger.push_public_logs()
@@ -83,16 +86,32 @@ class Monopoly(object):
 
 		for _ in range(turns):
 			self.turn()
-		return self.summary()
+		self.summary()
+		self.select_winner()
+		return
+
+	def select_winner(self, mode='default'):
+		''' After the game ends, process who the game winners are based on
+		requirements set by game mode. '''
+
+		if mode == 'default':
+			for player in self.players.values():
+				if player._inplay is True:
+					print "%s is the winner!" % player.name
 
 	def summary(self):
 		''' Summary stats displayed following the game. '''
 
-		print "________________"
-		print '%s turns have elapsed in this game so far.' % self.turns
+		print "_"*40
+		print ' '*5, 'G A M E  S U M M A R Y', ' '*5
+		print '%s turns have elapsed in this game.\n' % self.turns
 		for player in self.players.values():
-			print "Player: ", player.name
-			print "Money: $", player.money
+			print "Player: %s" % player.name
+			print "Money: $%s" % player.money
+			print "Total Net Worth: $%s" % player.net_worth()[0]
+			print "%% Cash of Net Worth: %s" % player.net_worth()[1]
+			print "%% Assets of Net Worth: %s" % player.net_worth()[2]
+			print "Emergency Liquidity: $%s" % (player.net_worth()[0] * player.net_worth()[2])
 			property_display = [p.name for p in player.properties.values()]
-			print "Monopolies: ", player.check_monopoly()
-			print "Property: ", property_display
+			print "Properties: %s" % property_display
+			print "Monopolies: %s\n\n" % player.check_monopoly()

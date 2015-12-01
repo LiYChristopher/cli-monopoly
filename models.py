@@ -171,7 +171,7 @@ class Player(object):
 	'''
 
 	def __init__(self, name, board, cards):
-		self.__inplay = True
+		self._inplay = True
 		self.name = name
 		self.board = board
 		self.cards = cards
@@ -362,23 +362,23 @@ class Player(object):
 		This should always be the final step of the interaction cycle. '''
 
 		unfinished = True
-		options = ['End Turn', 'Trade', 'Mortgage Property',
-					'Purchase Asset', 'Sell Asset', 'Inspect Self',
-					'Others Inspect', 'Display Game Logs']
-
-		# add additional options based on state
-		if not self.check_monopoly():
-			options.remove('Purchase Asset')
-
-		for tile_name in self.properties:
-			if (board.tiles[tile_name]['hotels'] == 0 and board.tiles[tile_name]['houses'] == 0):
-				options.remove('Sell Asset')
-				break
-
-		if not self.properties:
-			options.remove('Mortgage Property')
-
 		while unfinished:
+			options = ['End Turn', 'Trade', 'Mortgage Property',
+						'Purchase Asset', 'Sell Asset', 'Inspect Self',
+						'Others Inspect', 'Display Game Logs']
+
+			# add additional options based on state
+			if len(self.check_monopoly()) == 0:
+				options.remove('Purchase Asset')
+
+			for tile_name in self.properties:
+				if (board.tiles[tile_name]['hotels'] == 0 and board.tiles[tile_name]['houses'] == 0):
+					options.remove('Sell Asset')
+					break
+
+			if not self.properties:
+				options.remove('Mortgage Property')
+
 			# use Get out of Jail Free if it's available
 			if 'Get out of Jail Free' in self.passes and self.jail is True:
 				get_out = raw_input("You have a 'Get out of Jail Free' card, would you like to use it? (Y/n)")
@@ -417,11 +417,13 @@ class Player(object):
 			elif menu_choice == 'd':
 				GameLogger.push_public_logs()   # Display Game Logs
 				GameLogger.display()
+
 			elif menu_choice == 'rt':
 				for i in bank.rent_table.items():
 					print i
 			else:
 				continue
+
 		# repeat turn if required
 		if self.repeat_turn is True:
 			msg = "It's %s's turn again, because doubles were rolled!" % self.name
@@ -438,23 +440,27 @@ class Player(object):
 		''' Purchase property in argument, sets up
 		pending transaction for Bank to process at end of turn. '''
 
+		if self.money - property_.cost < 0:
+			print "You don't have enough money to make this purchase."
+			return
 		ongoing = True
-		while ongoing:
-			print "%s costs $%s, would you like to purchase it?" % (property_.name, property_.cost)
-			purchase_choice = raw_input("(y/n) >").lower()  # make this into a form button on Flask?
 
+		while ongoing:
+			print "%s costs $%s, would you like to purchase it?" % (property_.name,
+																	property_.cost)
+			purchase_choice = raw_input("(y/n) >").lower()
 			if purchase_choice != 'y' and purchase_choice != 'n':
 				continue
-
-			if purchase_choice.lower() == 'n':
+			elif purchase_choice.lower() == 'n':
 				return
+
 			self.money -= property_.cost
 			self.properties[property_.name] = property_
 			board.tiles[property_.name]['owner'] = self.name
 			ongoing = False
 
 		GameLogger.add_log(msgtype='purchase', name=self.name,
-						   property=property_.name, cost=property_.cost)
+							property=property_.name, cost=property_.cost)
 		return
 
 	def pay_rent(self, property_owner, property_, bank):
@@ -463,14 +469,17 @@ class Player(object):
 		on their property. '''
 
 		print "You owe %s rent." % property_owner
+
 		if bank.players[property_owner] in self.others:
 			recipient = bank.players[property_owner]
 		else:
 			return
 
 		rent = bank.rent_table[property_.name]['rent']
+
 		if property_.type == 'utility':
 			rent *= self.last_roll
+
 		recipient.money += rent
 		self.money -= bank.rent_table[property_.name]['rent']
 		GameLogger.add_log(msgtype='rent', p1=self.name,
@@ -486,7 +495,7 @@ class Player(object):
 		c = Counter(colors)
 		with db.conn as conn:
 			monopolies = [color for color, count in c.items()
-						  if count == db.prop_set_length(conn, color)[0]]
+							if count == db.prop_set_length(conn, color)[0]]
 		return monopolies
 
 	def total_assets(self):
@@ -508,13 +517,14 @@ class Player(object):
 
 		menu = {}
 		monopolies = self.check_monopoly()
+		num = -1
 		for num, prop in enumerate(self.properties.values()):
+			num += 1
 			if prop.type in monopolies:
-				num = str(num)
-				print "%s : %s" % (num, prop.name)
+				print "%s : %s" % (str(num), prop.name)
 				menu[num] = self.properties[prop.name]
-		print "%s : %s" % (len(menu) + 1, 'Cancel')
-		menu[len(menu) + 1] = 'Cancel'
+		print "%s : %s" % (str(num + 1), 'Cancel')
+		menu[str(num + 1)] = 'Cancel'
 		ongoing = True
 		while ongoing:
 
@@ -522,7 +532,7 @@ class Player(object):
 			prop_choice = raw_input(" >> ")
 			if prop_choice not in menu.keys():
 				continue
-			elif prop_choice == str(len(menu) + 1):
+			elif prop_choice == str(num + 1):
 				ongoing = False
 				return
 
@@ -697,6 +707,33 @@ class Player(object):
 				print "\t ...", color.title()
 			print "_" * 40
 		return
+
+	def net_worth(self):
+		''' Calculates net worth of player, by returning the sum
+		of a player's money, total value of assets (houses/hotels)
+		and total value of properties. '''
+
+		# asset
+		assets = 0
+		# properties
+		properties = 0
+		for property_ in self.properties.values():
+			properties += property_.mortgage
+			number = self.board.tiles[property_.name]['houses']
+			if self.board.tiles[property_.name]['hotels']:
+				number = 5
+			if property_.type in ['purple', 'periwinkle']:
+				assets += (25 * number)
+			elif property_.type in ['magenta', 'orange']:
+				assets += (50 * number)
+			elif property_.type in ['red', 'yellow']:
+				assets += (75 * number)
+			elif property_.type in ['green', 'blue']:
+				assets += (100 * number)
+		total_net_worth = self.money + assets + properties
+		cash_to_nw = round(self.money / float(total_net_worth), 3)
+		assets_to_nw = round(assets + properties / float(total_net_worth), 3)
+		return total_net_worth, cash_to_nw, assets_to_nw
 
 	def __repr__(self):
 		return "<class Player '%s'>" % self.name
