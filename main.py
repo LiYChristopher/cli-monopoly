@@ -30,6 +30,13 @@ def command_line():
 	parser.add_argument('-turns', type=int, dest='turns',
 						help="Number of Turns (default 50)", default=50)
 
+	mode_help = ''' 'default' is a last-man-standing style, where the only
+				player not bankrupt wins. 'worth' selects winner based on highest
+				net worth. '''
+
+	parser.add_argument('-mode', type=str, dest='mode',
+						help=mode_help, default='default')
+
 	return parser.parse_args()
 
 if __name__ == '__main__':
@@ -38,4 +45,4 @@ if __name__ == '__main__':
 
 	monopoly = Monopoly(args.players)
 	monopoly.setup()
-	monopoly.play(args.turns)
+	monopoly.play(args.turns, args.mode)

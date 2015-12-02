@@ -10,6 +10,7 @@ from models import DbInterface
 from config import DEFAULT_TILES
 from models import Interactor
 from models import GameLogger
+from colorama import Fore, Style
 
 
 class Monopoly(object):
@@ -32,7 +33,7 @@ class Monopoly(object):
 	def setup(self):
 		''' Factory method that sets up Player objects, and essential
 		in-game elements e.g. the game logger. '''
-		print "\nWelcome to command-line Monopoly! Let's set your game up.\n"
+		print Style.BRIGHT + Fore.WHITE + "\nWelcome to command-line Monopoly! Let's set your game up.\n"
 		# creates all players
 		for player in range(1, self.num_players + 1):
 			name = raw_input("What's your name player? > ")
@@ -80,14 +81,14 @@ class Monopoly(object):
 		self.turns += 1
 		return
 
-	def play(self, turns):
+	def play(self, turns, mode):
 		''' Runs the game, following setup, for a duration specified by
 		the command-line argument, 't' (50 by default).'''
 
 		for _ in range(turns):
 			self.turn()
 		self.summary()
-		self.select_winner()
+		self.select_winner(mode)
 		return
 
 	def select_winner(self, mode='default'):
@@ -99,6 +100,15 @@ class Monopoly(object):
 				if player._inplay is True:
 					print "%s is the winner!" % player.name
 
+		elif mode == 'worth':
+			winner_worth = 0
+			winner_name = None
+			for player in self.players.values():
+				if player.net_worth()[0] > winner_worth:
+					winner_worth = player.net_worth()[0]
+					winner_name = player.name
+			print Fore.GREEN + Style.BRIGHT + "%s is the winner!" % winner_name
+
 	def summary(self):
 		''' Summary stats displayed following the game. '''
 
@@ -107,10 +117,10 @@ class Monopoly(object):
 		print '%s turns have elapsed in this game.\n' % self.turns
 		for player in self.players.values():
 			print "Player: %s" % player.name
-			print "Money: $%s" % player.money
 			print "Total Net Worth: $%s" % player.net_worth()[0]
-			print "%% Cash of Net Worth: %s" % player.net_worth()[1]
-			print "%% Assets of Net Worth: %s" % player.net_worth()[2]
+			print "Money: $%s" % player.money
+			print "%% Net Worth in Cash: %s" % player.net_worth()[1]
+			print "%% Net Worth in Assets: %s" % player.net_worth()[2]
 			print "Emergency Liquidity: $%s" % (player.net_worth()[0] * player.net_worth()[2])
 			property_display = [p.name for p in player.properties.values()]
 			print "Properties: %s" % property_display

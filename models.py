@@ -424,10 +424,10 @@ class Player(object):
 			else:
 				continue
 
-		# repeat turn if required
+		# If you roll doubles - go again
 		if self.repeat_turn is True:
 			msg = "It's %s's turn again, because doubles were rolled!" % self.name
-			print "It's your turn, %s!" % self.name
+			print "It's your turn, again %s!" % self.name
 			GameLogger.add_log(msg=msg)
 			self.repeat_turn = False
 			current_location = self.roll_dice(board, bank)
