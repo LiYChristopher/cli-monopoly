@@ -314,7 +314,7 @@ class Interactor(object):
 							p.money -= rent
 							other.money += rent
 							print "You owe %s $%s in rent." % (other.name, rent)
-							GameLogger.add_log(msgtype=rent, p1=p.name,
+							GameLogger.add_log(msgtype='rent', p1=p.name,
 												p2=other.name, m=rent)
 							return
 
@@ -345,8 +345,9 @@ class Interactor(object):
 							p.money -= rent
 							other.money += rent
 							print "You paid %s $%s!" % (other.name, ((die1 + die2) * 10))
-							GameLogger.add_log(msgtype=rent, p1=p.name,
+							GameLogger.add_log(msgtype='rent', p1=p.name,
 											p2=other.name, m=((die1 + die2) * 10))
+							return
 
 					p.purchase(cls.board,
 								cls.bank.all_properties[new_location])

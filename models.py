@@ -35,13 +35,10 @@ class Board(object):
 			del temp[tile]
 		return temp
 
-	def check_ownership(self):
+	def check_ownership(self, property_name):
 		''' Scan all properties for ownership. '''
 
-		for tile, player in self.tiles.items():
-			if tile["owner"]:
-				print "%s is owned by player" % (tile["owner"])
-		return
+		return self.prop_tiles()[property_name]["owner"]
 
 
 class Bank(object):
@@ -127,16 +124,17 @@ class Bank(object):
 	def utilities_rent(self, players):
 		''' If a player owns all utilities, set base rent to $10.'''
 
-		for player in players.values():
-			util_count = 0
-			for prop in player.properties.values():
-				if prop.type == 'utility':
-					util_count += 1
-			if util_count == 2:
-				for prop_name, prop_info in self.rent_table.items():
-					if prop_info['type'] == 'utility' and self.tiles[prop_name]['owner'] is player.name:
-						self.rent_table[prop_name]['rent'] = 10
-				return
+		ec_owner = self.tiles['Electric Company']['owner']
+		ww_owner = self.tiles['Water Works']['owner']
+
+		if ec_owner == ww_owner:
+			self.rent_table['Electric Company']['rent'] = 10
+			self.rent_table['Water Works']['rent'] = 10
+
+		else:
+			self.rent_table['Electric Company']['rent'] = 4
+			self.rent_table['Water Works']['rent'] = 4
+
 		return
 
 	def railroads_rent(self, players):
