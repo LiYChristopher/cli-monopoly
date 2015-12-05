@@ -79,7 +79,10 @@ class Bank(object):
 		in the rent_table dict to new rent. '''
 
 		for tile_name, tile_obj in self.tiles.items():
+			prop_type = self.rent_table[tile_name]['type']
 
+			if prop_type == 'rr' or prop_type == 'utility':
+				continue
 			if tile_obj['owner'] is not None:
 				prop = players[tile_obj['owner']].properties[tile_name]  # prop object
 
@@ -140,17 +143,19 @@ class Bank(object):
 	def railroads_rent(self, players):
 		''' Adjusts railroad rent to account for rent multiplier (+$25 ea) '''
 
+
 		for player in players.values():
+			owner = player.name
 			rr_count = 0
 			for prop in player.properties.values():
 				if prop.type == 'rr':
 					rr_count += 1
 			if rr_count == 0:
 				continue
-			for prop_name, prop_info in self.rent_table.items():
-				rent = 25 * (2 ** (rr_count - 1))
-				if prop_info['type'] == 'rr' and self.tiles[prop_name]['owner'] is player.name:
-					self.rent_table[prop_name]['rent'] = rent
+			for prop_name, prop_info in self.rent_table.items():		
+				if prop_info['type'] == 'rr' and self.tiles[prop_name]['owner'] == player.name:
+					rent = lambda rr_count : 25 * (2 ** (rr_count - 1))
+					self.rent_table[prop_name]['rent'] = rent(rr_count)
 		return
 
 
