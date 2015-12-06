@@ -1,3 +1,5 @@
+# cmd-line-monopoly
+
 This is a command-line version of Hasbro's Monopoly, implemented in Python.
 
 The intent in making an implementation of this game is to put it online via a
@@ -11,7 +13,7 @@ so that it can work without needing to do a DB look up on info associated with P
 This is my first solo project, so the API is probably not perfect, but I gained a lot of valuable experience
 in object-oriented development, working with a third-party python SQL library and writing some unit tests.
 
-To Dos:
+## To Dos
 
 - Finish post-interaction menu; mortgage property function is complete, but not implemented
 into the menu yet.
@@ -22,7 +24,7 @@ value of their non-money assets - houses, hotels and properties (mortgage values
 
 - Player option to forfeit; there's no such option yet.
 
-Looking Forward:
+## Looking Forward
 
 - Working on integrating this framework into a web-app using Flask.
 - Reimplementing with ncurses/npyscreen - to achieve an improved user experience and aesthetic, I wanted to achieve
