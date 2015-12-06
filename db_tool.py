@@ -1,8 +1,11 @@
+''' Short scripts to help load the SQL database with essential game components
+namely the Cards and Properties. '''
+
 from db import dbInterface
 import csv
 
-
-def csvtosql(csvfile):
+def csvtosql_cards(csvfile):
+	''' Loads SQL Database with Cards info.'''
 	db = dbInterface()
 	with open(csvfile, "rU") as to_read:
 		reader = csv.reader(to_read)
@@ -21,4 +24,4 @@ def csvtosql(csvfile):
 	return "Database has been loaded."
 
 if __name__ == '__main__':
-	print csvtosql('cards.csv')
+	print csvtosql_cards('cards.csv')
