@@ -520,14 +520,14 @@ class Player(object):
 
 		menu = {}
 		monopolies = self.check_monopoly()
-		num = -1
+		menu_idx = 0
 		for num, prop in enumerate(self.properties.values()):
-			num += 1
 			if prop.type in monopolies:
-				print "%s : %s" % (str(num), prop.name)
-				menu[num] = self.properties[prop.name]
-		print "%s : %s" % (str(num + 1), 'Cancel')
-		menu[str(num + 1)] = 'Cancel'
+				print "%s : %s" % (str(menu_idx), prop.name)
+				menu[str(menu_idx)] = self.properties[prop.name]
+				menu_idx += 1
+		print "%s : %s" % (str(menu_idx), 'Cancel')
+		menu[str(menu_idx + 1)] = 'Cancel'
 		ongoing = True
 		while ongoing:
 
@@ -535,7 +535,7 @@ class Player(object):
 			prop_choice = raw_input(" >> ")
 			if prop_choice not in menu.keys():
 				continue
-			elif prop_choice == str(num + 1):
+			elif prop_choice == str(menu_idx + 1):
 				ongoing = False
 				return
 
@@ -769,33 +769,3 @@ class Cards(object):
 			self.communitychest.append(draw)
 			return draw
 		return
-
-if __name__ == '__main__':
-	pass
-	'''
-	b = Board(DEFAULT_TILES, None)
-	c = Cards(COMMUNITY_CHEST, CHANCE)
-	db = DbInterface()
-
-	x = Player('Noah', b, c)
-	y = Player('Ev', b, c)
-	z = Player('Jack', b, c)
-	players = {x.name: x, y.name : y, z.name : z}
-	bank = Bank(b, players)
-	Interactor.players = players
-	Interactor.board = b
-	Interactor.bank = bank
-	Interactor.cards = c
-	Interactor.db = DbInterface()
-	with db.conn as conn:
-		x.purchase(b, db.property_info(conn, 'Mediterranean Avenue'))
-		x.purchase(b, db.property_info(conn, 'Baltic Avenue'))
-		y.purchase(b, db.property_info(conn, 'Ventnor Avenue'))
-		y.purchase(b, db.property_info(conn, 'Atlantic Avenue'))
-
-	#Interactor.trade(x.name, y.name, 'Mediterranean Avenue')
-	#x.post_interact(b, bank)
-
-	x.others = [other for other in bank.players.values() if other != x]
-	x.trade_prompt(bank)
-	'''
