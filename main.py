@@ -3,12 +3,8 @@
 
 - Bugfixes will be ongoing at this point, especially in
 interactor.py
-- Args:
+- 'Monopoly takes 1 argument - the number of players.'
 
-	:players: number of players (technically no limite at the moment,
-				really shouldn't be more than 5)
-	:turns: number of turns
-	:mode: game mode; default, worth
 '''
 
 import argparse
@@ -25,8 +21,8 @@ def command_line():
 	so no party is profiting in any way from this creation. Enjoy!'''
 
 	parser = argparse.ArgumentParser(version='0.1',
-		formatter_class=argparse.RawDescriptionHelpFormatter,
-		description=desc)
+									formatter_class=argparse.RawDescriptionHelpFormatter,
+									description=desc)
 
 	parser.add_argument('-players', type=int, dest='players',
 						help="Number of Players", default=3)

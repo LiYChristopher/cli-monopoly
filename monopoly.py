@@ -38,12 +38,15 @@ class Monopoly(object):
 		for player in range(1, self.num_players + 1):
 			name = raw_input("What's your name player? > ")
 			self.players[name] = Player(name, self.board, self.cards)
+
 		# includes name of other players, for future interaction purposes
 		for player in self.players.values():
 			player.others = [other for other in self.players.values()
 							if other != player]
 			print "Player %s has been added to game." % (player.name)
+
 		self.cards.shuffle_cards()
+
 		# set up interactor
 		Interactor.players = self.players
 		Interactor.board = self.board
@@ -51,6 +54,7 @@ class Monopoly(object):
 		Interactor.cards = self.cards
 		Interactor.db = DbInterface()
 		print 'Interactor Initialized!'
+
 		# set up game logger
 		GameLogger.players = self.players
 		GameLogger.player_logs = {p: [] for p in self.players}
@@ -71,7 +75,7 @@ class Monopoly(object):
 
 			if player.money < 0:
 				pass
-				# bankrupcty protocol
+			# bankrupcty protocol
 			player.check_monopoly()
 			self.bank.update_all_rents(self.players)
 			GameLogger.push_public_logs()

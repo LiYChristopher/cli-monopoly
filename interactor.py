@@ -223,7 +223,7 @@ class Interactor(object):
 					p.money -= (assets['houses'] * 25)
 					p.money -= (assets['hotels'] * 100)
 					msg = "'%s' paid $%s and $%s for repairs to houses and hotels, respectively." % (p.name,
-													assets['houses'] * 25, assets['hotels'] * 100)
+					assets['houses'] * 25, assets['hotels'] * 100)
 					GameLogger.add_log(msg=msg)
 
 				# assessed for street repairs
@@ -232,7 +232,7 @@ class Interactor(object):
 					p.money -= (assets['houses'] * 40)
 					p.money -= (assets['hotels'] * 115)
 					msg = "'%s' paid $%s and $%s for repairs to houses and hotels, respectively." % (p.name,
-													assets['houses'] * 25, assets['hotels'] * 100)
+					assets['houses'] * 25, assets['hotels'] * 100)
 					GameLogger.add_log(msg=msg)
 
 				# you have been elected chairman of the board

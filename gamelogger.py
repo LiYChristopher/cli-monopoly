@@ -169,8 +169,3 @@ def ansi_tile(tile_name):
 		colored_out = Style.NORMAL + Fore.WHITE + tile_name
 
 	return colored_out
-
-if __name__ == '__main__':
-
-	t1 = timezone('US/Eastern').localize(datetime(2015, 11, 22, 12, 20, 00))
-	print log_delta(t1)

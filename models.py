@@ -266,15 +266,18 @@ class Player(object):
 		if current_location in self.properties:
 			print "You already own %s." % current_location
 			owned = True
+
 		if owned is False:
 			property_ = bank.all_properties[current_location]
 			# Pay rent if already owned by someone else.
 			if board.tiles[property_.name]['owner']:
 				self.pay_rent(board.tiles[property_.name]['owner'], property_, bank)
 				return self.post_interact(board, bank)
+
 			# Prompt Player to purchase property_ if unclaimed.
 			self.purchase(board, property_)
 			return self.post_interact(board, bank)
+
 		return self.post_interact(board, bank)
 
 	def interact_nonprop(self, board, bank, current_location):
@@ -585,10 +588,8 @@ class Player(object):
 				self.board.tiles[property_.name]['hotels'] += 1
 				bank.hotels -= 1
 				self.money += ((number + current_developments) - 5) * u_cost
-				print "Built 1 hotel at %s, it cost $%s." % (property_.name,
-															(old_money - self.money))
-				msg = "'%s' built 1 hotel at %s." % (self.name,
-													ansi_tile(property_.name))
+				print "Built 1 hotel at %s, it cost $%s." % (property_.name, (old_money - self.money))
+				msg = "'%s' built 1 hotel at %s." % (self.name, ansi_tile(property_.name))
 			else:
 				self.board.tiles[property_.name]['houses'] += number
 				bank.houses -= number
@@ -653,8 +654,7 @@ class Player(object):
 			self.board.tiles[property_.name]['houses'] *= number
 		else:
 			self.board.tiles[property_.name]['houses'] -= number
-		print ' -- %s sold %s houses for $%s.' % (self.name, number,
-												(self.money - old_money))
+		print ' -- %s sold %s houses for $%s.' % (self.name, number, (self.money - old_money))
 		return
 
 	def mortgage_property(self, property_, bank):
