@@ -84,7 +84,3 @@ class DbInterface(object):
 		result = cursor.fetchall()
 		return {prop[0]: {'type': prop[1], 'rent': prop[2]}
 				for prop in result}
-
-
-if __name__ == "__main__":
-	pass

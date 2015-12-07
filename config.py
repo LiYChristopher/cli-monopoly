@@ -46,6 +46,7 @@ UPGRADEABLE = ["Mediterranean Avenue", "Baltic Avenue", "Oriental Avenue",
 NON_UPGRADEABLE = ["Reading Railroad", "Electric Company", "Pennsylvania Railroad",
 					"B&O Railroad", "Water Works", "Short Line"]
 
+# for DBless version in the future
 PROPERTIES_RAW = [('Mediterranean Avenue', 'purple', 60, 2, 30, 10, 30, 90, 160, 250),
 					('Baltic Avenue', 'purple', 60, 4, 30, 20, 60, 180, 320, 450),
 					('Reading Railroad', 'rr', 200, 25, 100, None, None, None, None, None),
