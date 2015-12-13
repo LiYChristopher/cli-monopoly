@@ -27,8 +27,8 @@ class DbInterface(object):
 	''' Interface for accessing property and tile information from
 	the database. '''
 
-	conn = pymysql.connect(host='', port=3306, user='',
-							passwd='', db='')
+	conn = pymysql.connect(host='localhost', port=3306, user='root',
+							passwd='uberschall', db='monopoly')
 
 	@todb
 	def property_info(self, cursor, property_name):

@@ -33,6 +33,7 @@ class Monopoly(object):
 	def setup(self):
 		''' Factory method that sets up Player objects, and essential
 		in-game elements e.g. the game logger. '''
+
 		print Style.BRIGHT + Fore.WHITE + "\nWelcome to command-line Monopoly! Let's set your game up.\n"
 		# creates all players
 		for player in range(1, self.num_players + 1):

@@ -17,7 +17,7 @@ from monopoly import Monopoly
 
 def command_line():
 	desc = '''  	 _____________________________________________________
-	|     M     O     N     O     P     O     L     Y     |         													  
+	|     M     O     N     O     P     O     L     Y     |
 	 -----------------------------------------------------
 
 	This is a command-line interpretation of Hasbro's famous

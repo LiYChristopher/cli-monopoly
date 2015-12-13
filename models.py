@@ -3,6 +3,7 @@ Includes all essential in-game models; Board, Bank, Player and Cards
 '''
 
 from random import choice, shuffle
+from itertools import cycle
 from gamelogger import GameLogger, ansi_tile
 from interactor import Interactor
 from config import CHANCE, COMMUNITY_CHEST
@@ -142,7 +143,6 @@ class Bank(object):
 
 	def railroads_rent(self, players):
 		''' Adjusts railroad rent to account for rent multiplier (+$25 ea) '''
-
 
 		for player in players.values():
 			owner = player.name
@@ -333,12 +333,15 @@ class Player(object):
 		if plea.lower() == 'y':
 			snake_eye_trials = 3
 			print "Attempting to roll 3 doubles..."
+
 			while snake_eye_trials > 0:
 				die1 = choice(range(1, 7))
 				die2 = choice(range(1, 7))
 				print die1, die2
+
 				if die1 == die2:
 					snake_eye_trials -= 1
+
 					if snake_eye_trials == 0:
 						print "You rolled out of jail!"
 						self.jail = False
@@ -348,6 +351,7 @@ class Player(object):
 					GameLogger.add_log(msg=msg)
 					print "Unsuccessful attempt!"
 					self.jail_duration -= 1
+
 					if self.jail_duration <= 0:
 						print "Hey, you're out of jail next turn!"
 						self.jail = False
@@ -409,7 +413,7 @@ class Player(object):
 				self.trade_prompt(bank)			# Trade
 
 			elif menu_choice == 'm':
-				pass							# Mortgage Property
+				self.mortgage_prompt(bank)		# Mortgage Property
 
 			elif menu_choice == 'p':
 				self.build_asset_prompt(bank)   # Purchase Asset
@@ -524,17 +528,17 @@ class Player(object):
 		menu = {}
 		monopolies = self.check_monopoly()
 		menu_idx = 0
-		for num, prop in enumerate(self.properties.values()):
+		print "What property would you like to build on?"
+		for prop in self.properties.values():
 			if prop.type in monopolies:
 				print "%s : %s" % (str(menu_idx), prop.name)
 				menu[str(menu_idx)] = self.properties[prop.name]
 				menu_idx += 1
 		print "%s : %s" % (str(menu_idx), 'Cancel')
-		menu[str(menu_idx + 1)] = 'Cancel'
+		menu[str(menu_idx)] = 'Cancel'
+
 		ongoing = True
 		while ongoing:
-
-			print "What property would you like to build on?"
 			prop_choice = raw_input(" >> ")
 			if prop_choice not in menu.keys():
 				continue
@@ -543,7 +547,11 @@ class Player(object):
 				return
 
 			number_to_build = int(raw_input("How much do you want to build? (Max is 5 - a hotel.) "))
-			print "So you want to build %s structures on %s?" % (number_to_build, menu[prop_choice].name)
+			if number_to_build >= 5:
+				print "So you want to build a hotel on %s>" % (menu[prop_choice].name)
+			else:
+				print "So you want to build %s structures on %s?" % (number_to_build,
+																menu[prop_choice].name)
 
 			confirm = raw_input("(y/n) >> ")
 			if confirm.lower() == 'y':
@@ -628,7 +636,6 @@ class Player(object):
 		''' Sell a specified number of some type of asset for half
 		of the purchase price. '''
 
-		# if hotel already here, don't build.
 		if self.board.tiles[property_.name]['owner'] != self.name:
 			return 'This property and its assets are not yours to sell!'
 		if number > self.board.tiles[property_.name]['houses']:
@@ -655,6 +662,35 @@ class Player(object):
 		else:
 			self.board.tiles[property_.name]['houses'] -= number
 		print ' -- %s sold %s houses for $%s.' % (self.name, number, (self.money - old_money))
+		return
+
+	def mortgage_prompt(self, bank):
+		''' Prompts player to select property to mortgage.'''
+		menu = {}
+		print "What property would you like to mortgage?"
+		for idx, prop in enumerate(self.properties.values()):
+				print "%s : %s" % (str(idx), prop.name)
+				menu[str(idx)] = self.properties[prop.name]
+		end_of_menu = str(len(self.properties.values()))
+		print "%s : %s" % (end_of_menu, 'Cancel')
+		menu[end_of_menu] = 'Cancel'
+
+		ongoing = True
+		while ongoing:
+			prop_choice = raw_input(" >> ")
+			if prop_choice not in menu.keys():
+				continue
+			elif prop_choice == end_of_menu:
+				ongoing = False
+				return
+
+			msg = ''' Are you sure? (y/n) >> '''
+			confirm = raw_input(msg)
+			if confirm.lower() == 'y':
+				self.mortgage_property(menu[prop_choice], bank)
+				ongoing = False
+			else:
+				continue
 		return
 
 	def mortgage_property(self, property_, bank):
@@ -748,24 +784,25 @@ class Cards(object):
 
 	def __init__(self):
 		self.chance = CHANCE
+		self.chance_cards = None
 		self.communitychest = COMMUNITY_CHEST
+		self.communitychest_cards = None
 
 	def shuffle_cards(self):
-		''' Randomizes order of cards. '''
+		''' Randomizes order of cards. Deck is now ready for use in-game.'''
 		shuffle(self.chance)
+		self.chance_cards = cycle(self.chance)
 		shuffle(self.communitychest)
+		self.communitychest_cards = cycle(self.communitychest)
 		return
 
 	def select(self, card_type):
 		''' Select a card from the top of the deck. '''
+		if not self.chance_cards or not self.communitychest_cards:
+			return "Please shuffle cards first."
+
 		if card_type == "chance":
-			draw = self.chance[0]
-			self.chance.remove(draw)
-			self.chance.append(draw)
-			return draw
+			return self.chance_cards.next()
 		elif card_type == "community chest":
-			draw = self.communitychest[0]
-			self.communitychest.remove(draw)
-			self.communitychest.append(draw)
-			return draw
+			return self.communitychest_cards.next()
 		return
